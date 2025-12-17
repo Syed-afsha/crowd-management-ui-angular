@@ -85,7 +85,7 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
       } else if (diffMins < 60) {
         result = `${diffMins}m ago`;
       } else {
-        result = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        result = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
       }
       
       this.timeCache.set(cacheKey, result);

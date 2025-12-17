@@ -200,11 +200,11 @@ export class EntriesComponent implements OnInit, OnDestroy {
         this.dateTimeCache.set(cacheKey, result);
         return result;
       }
-      // Format as "11:05 AM" to match design
+      // Format as "11:05" (24-hour format)
       const result = date.toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
-        hour12: true
+        hour12: false
       });
       this.dateTimeCache.set(cacheKey, result);
       return result;

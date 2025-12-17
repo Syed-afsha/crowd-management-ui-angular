@@ -610,7 +610,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         return '';
       }
       
-      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     } catch (err) {
       console.error('❌ Dashboard: Error formatting time:', {
         error: err,
