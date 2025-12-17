@@ -30,6 +30,34 @@
   color: #1f2937;
 }
 
+.date-picker-container {
+  position: relative;
+  display: inline-block;
+}
+
+.date-form-field {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  margin: 0;
+  padding: 0;
+  
+  ::ng-deep .mat-mdc-text-field-wrapper {
+    padding: 0;
+    margin: 0;
+  }
+  
+  ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+    display: none;
+  }
+}
+
+.date-input {
+  display: none;
+}
+
 .date-picker-btn {
   background: white;
   border: 1px solid #e5e7eb;
@@ -150,7 +178,8 @@
   overflow-y: visible; // Allow vertical overflow for chart elements
   position: relative;
   
-  ::ng-deep ngx-charts-line-chart {
+  ::ng-deep ngx-charts-line-chart,
+  ::ng-deep ngx-charts-area-chart {
     width: 100% !important;
     display: block;
     overflow: visible;
@@ -237,6 +266,47 @@
   }
 }
 
+.live-marker {
+  position: absolute;
+  top: 0;
+  right: 15%;
+  transform: translateX(50%);
+  z-index: 12;
+  pointer-events: none;
+}
+
+.live-marker-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #ef4444;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transform: translateX(-50%);
+}
+
+.live-icon {
+  font-size: 8px;
+  width: 8px;
+  height: 8px;
+  color: white;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 .demographics-title {
   font-size: 1.1rem;
   margin-top: 0;
@@ -265,7 +335,8 @@
     min-width: 0; // Allow grid item to shrink below content size
     
     // Demographics Analysis chart container
-    ngx-charts-line-chart {
+    ngx-charts-line-chart,
+    ngx-charts-area-chart {
       width: 100% !important;
       max-width: 100% !important;
       display: block;
@@ -291,7 +362,7 @@
 }
 
 .donut-container {
-  height: 220px; // Increased to match larger pie chart
+  height: 240px; // Increased to match larger pie chart
   position: relative;
   display: flex;
   justify-content: center;
@@ -300,6 +371,30 @@
   margin-bottom: 8px;
   width: 100%;
   max-width: 100%;
+}
+
+.donut-center-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.donut-center-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1.2;
+}
+
+.donut-center-label {
+  font-size: 0.85rem;
+  color: #6b7280;
+  font-weight: 500;
+  margin-top: 4px;
 }
 
 .demographics-legend {
@@ -389,7 +484,8 @@
   100% { background-position: -100% 0; }
 }
 
-::ng-deep ngx-charts-line-chart {
+::ng-deep ngx-charts-line-chart,
+::ng-deep ngx-charts-area-chart {
   text {
     fill: #1f2937 !important;
   }

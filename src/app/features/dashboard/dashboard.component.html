@@ -1,10 +1,25 @@
 <div class="dashboard">
   <div class="section-header">
     <h2>Overview</h2>
-    <button class="date-picker-btn">
-      <mat-icon class="calendar-icon">calendar_today</mat-icon>
-      <span>Today</span>
-    </button>
+    <div class="date-picker-container">
+      <mat-form-field class="date-form-field">
+        <input 
+          matInput
+          [matDatepicker]="picker" 
+          [value]="selectedDate"
+          (dateChange)="onDateChange($event.value)"
+          class="date-input"
+          readonly>
+        <mat-datepicker #picker></mat-datepicker>
+      </mat-form-field>
+      <button 
+        class="date-picker-btn" 
+        (click)="picker.open()"
+        type="button">
+        <mat-icon class="calendar-icon">calendar_today</mat-icon>
+        <span>{{ getDateDisplayText() }}</span>
+      </button>
+    </div>
   </div>
 
   <div class="stats-grid">
@@ -48,17 +63,15 @@
   <div class="chart-section">
     <div class="chart-header">
       <div class="stat-title">Overall Occupancy</div>
-      <div class="live-indicator-wrapper">
-        <div class="live-badge">LIVE</div>
-      </div>
     </div>
     <div class="chart-container-wrapper">
-      <ngx-charts-line-chart
+      <ngx-charts-area-chart
       *ngIf="occupancyChartData.length > 0"
       [view]="chartOptions.view"
       [scheme]="'vivid'"
       [results]="occupancyChartData"
-      [gradient]="chartOptions.gradient"
+      [gradient]="true"
+      [curve]="curve"
       [xAxis]="chartOptions.showXAxis"
       [yAxis]="chartOptions.showYAxis"
       [legend]="chartOptions.showLegend"
@@ -69,7 +82,13 @@
       [autoScale]="chartOptions.autoScale"
       [timeline]="chartOptions.timeline"
       [animations]="chartOptions.animations">
-      </ngx-charts-line-chart>
+      </ngx-charts-area-chart>
+      <div class="live-marker" *ngIf="occupancyChartData.length > 0 && !loading">
+        <div class="live-marker-badge">
+          <mat-icon class="live-icon">fiber_manual_record</mat-icon>
+          <span>LIVE</span>
+        </div>
+      </div>
       <div *ngIf="occupancyChartData.length === 0 && !loading" class="no-data">No occupancy data available</div>
       <div *ngIf="loading" class="skeleton-chart"></div>
     </div>
@@ -90,16 +109,20 @@
           [doughnut]="true"
           [animations]="pieChartOptions.animations">
         </ngx-charts-pie-chart>
+        <div *ngIf="demographicsAnalysisChartData.length > 0 && !loading" class="donut-center-text">
+          <div class="donut-center-value">{{ getTotalCrowdPercentage() }}%</div>
+          <div class="donut-center-label">Total Crowd</div>
+        </div>
         <div *ngIf="demographicsAnalysisChartData.length === 0 && !loading" class="no-data-small">No data</div>
         <div *ngIf="loading" class="skeleton-donut"></div>
       </div>
       <div class="demographics-legend" *ngIf="!loading && demographicsAnalysisChartData.length > 0">
         <div class="legend-item">
-          <mat-icon class="legend-icon male">person</mat-icon>
+          <mat-icon class="legend-icon male">male</mat-icon>
           <span>{{ getMalePercentage() }}% Males</span>
         </div>
         <div class="legend-item">
-          <mat-icon class="legend-icon female">person</mat-icon>
+          <mat-icon class="legend-icon female">female</mat-icon>
           <span>{{ getFemalePercentage() }}% Females</span>
         </div>
       </div>
@@ -107,12 +130,13 @@
 
     <div class="card">
       <div class="stat-title">Demographics Analysis</div>
-      <ngx-charts-line-chart
+      <ngx-charts-area-chart
         *ngIf="demographicsChartData.length > 0"
         [view]="demographicsChartOptions.view"
         [scheme]="'vivid'"
         [results]="demographicsChartData"
-        [gradient]="demographicsChartOptions.gradient"
+        [gradient]="true"
+        [curve]="curve"
         [xAxis]="demographicsChartOptions.showXAxis"
         [yAxis]="demographicsChartOptions.showYAxis"
         [legend]="demographicsChartOptions.showLegend"
@@ -123,7 +147,7 @@
         [autoScale]="demographicsChartOptions.autoScale"
         [timeline]="demographicsChartOptions.timeline"
         [animations]="demographicsChartOptions.animations">
-      </ngx-charts-line-chart>
+      </ngx-charts-area-chart>
       <div *ngIf="demographicsChartData.length === 0 && !loading" class="no-data">No demographics data available</div>
       <div *ngIf="loading" class="skeleton-chart"></div>
     </div>

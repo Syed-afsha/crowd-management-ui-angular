@@ -148,14 +148,50 @@ export class ApiService {
     );
   }
 
-  getFootfall() {
+  getFootfall(fromUtc?: number, toUtc?: number) {
+    // If dates provided, create new request (bypass cache)
+    if (fromUtc !== undefined && toUtc !== undefined) {
+      const payload = {
+        siteId: this.auth.getSiteId() || '',
+        fromUtc,
+        toUtc,
+      };
+      return this.http.post<any>(`${this.base}/api/analytics/footfall`, payload).pipe(
+        timeout(this.REQUEST_TIMEOUT),
+        catchError(err => {
+          if (err.name !== 'TimeoutError') {
+            console.error('Footfall request failed:', err);
+          }
+          return of(null);
+        })
+      );
+    }
+    // Use cached version for default (today)
     if (!this.footfallCache$) {
       this.footfallCache$ = this.createFootfallCache();
     }
     return this.footfallCache$;
   }
 
-  getDwell() {
+  getDwell(fromUtc?: number, toUtc?: number) {
+    // If dates provided, create new request (bypass cache)
+    if (fromUtc !== undefined && toUtc !== undefined) {
+      const payload = {
+        siteId: this.auth.getSiteId() || '',
+        fromUtc,
+        toUtc,
+      };
+      return this.http.post<any>(`${this.base}/api/analytics/dwell`, payload).pipe(
+        timeout(this.REQUEST_TIMEOUT),
+        catchError(err => {
+          if (err.name !== 'TimeoutError') {
+            console.error('Dwell request failed:', err);
+          }
+          return of(null);
+        })
+      );
+    }
+    // Use cached version for default (today)
     if (!this.dwellCache$) {
       this.dwellCache$ = this.createDwellCache();
     }
@@ -190,14 +226,56 @@ export class ApiService {
     return this.entryExitCache.get(cacheKey)!;
   }
 
-  getOccupancy() {
+  getOccupancy(fromUtc?: number, toUtc?: number) {
+    // If dates provided, create new request (bypass cache)
+    if (fromUtc !== undefined && toUtc !== undefined) {
+      const payload = {
+        siteId: this.auth.getSiteId() || '',
+        fromUtc,
+        toUtc,
+      };
+      return this.http.post<any>(`${this.base}/api/analytics/occupancy`, payload).pipe(
+        timeout(this.REQUEST_TIMEOUT),
+        catchError(err => {
+          if (err.status === 404) {
+            return of(null);
+          }
+          if (err.name !== 'TimeoutError') {
+            console.error('Occupancy request failed:', err);
+          }
+          return of(null);
+        })
+      );
+    }
+    // Use cached version for default (today)
     if (!this.occupancyCache$) {
       this.occupancyCache$ = this.createOccupancyCache();
     }
     return this.occupancyCache$;
   }
 
-  getDemographics() {
+  getDemographics(fromUtc?: number, toUtc?: number) {
+    // If dates provided, create new request (bypass cache)
+    if (fromUtc !== undefined && toUtc !== undefined) {
+      const payload = {
+        siteId: this.auth.getSiteId() || '',
+        fromUtc,
+        toUtc,
+      };
+      return this.http.post<any>(`${this.base}/api/analytics/demographics`, payload).pipe(
+        timeout(this.REQUEST_TIMEOUT),
+        catchError(err => {
+          if (err.status === 404) {
+            return of(null);
+          }
+          if (err.name !== 'TimeoutError') {
+            console.error('Demographics request failed:', err);
+          }
+          return of(null);
+        })
+      );
+    }
+    // Use cached version for default (today)
     if (!this.demographicsCache$) {
       this.demographicsCache$ = this.createDemographicsCache();
     }

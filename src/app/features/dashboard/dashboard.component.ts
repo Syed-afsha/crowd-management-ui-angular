@@ -1,6 +1,11 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule, provideNativeDateAdapter } from '@angular/material/core';
+import { MatButtonModule } from '@angular/material/button';
+import { MatInputModule } from '@angular/material/input';
+import { MatFormFieldModule } from '@angular/material/form-field';
 import { ApiService } from '../../core/services/api.service';
 import { SocketService } from '../../core/services/socket.service';
 import { SiteService } from '../../core/services/site.service';
@@ -8,11 +13,12 @@ import { NotificationService, Alert } from '../../core/services/notification.ser
 import { AuthService } from '../../core/services/auth.service';
 import { NgxChartsModule } from '@swimlane/ngx-charts';
 import { Subscription, forkJoin, debounceTime, distinctUntilChanged, catchError, of } from 'rxjs';
+import { curveCardinal } from 'd3-shape';
 
 @Component({
   standalone: true,
   selector: 'app-dashboard',
-  imports: [CommonModule, NgxChartsModule, MatIconModule],
+  imports: [CommonModule, NgxChartsModule, MatIconModule, MatDatepickerModule, MatNativeDateModule, MatButtonModule, MatInputModule, MatFormFieldModule],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -60,9 +66,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   };
   pieChartOptions = {
     showLegend: true,
-    view: [320, 220] as [number, number], // Increased size for better visibility
+    view: [340, 240] as [number, number], // Slightly increased size
     animations: false // Explicitly disable animations
   };
+
+  curve = curveCardinal.tension(0.5); // Smooth wavy curves
+
+  selectedDate: Date = new Date();
+  datePickerOpen = false;
 
   private socketSubscriptions: Subscription[] = [];
   private httpSubscriptions: Subscription[] = [];
@@ -140,21 +151,35 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // - 2 minute cache TTL (cached data loads instantly)
     // - Request deduplication prevents duplicate calls
     
+    // Calculate date range based on selected date
+    const selectedDateStart = new Date(this.selectedDate);
+    selectedDateStart.setHours(0, 0, 0, 0);
+    const selectedDateEnd = new Date(this.selectedDate);
+    selectedDateEnd.setHours(23, 59, 59, 999);
+    
+    const fromUtc = selectedDateStart.getTime();
+    const toUtc = selectedDateEnd.getTime();
+    
+    // Check if selected date is today - use cache for better performance
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isToday = selectedDateStart.getTime() === today.getTime();
+    
     // Use startWith to show loading state immediately, but don't block UI
     const allRequestsSub = forkJoin({
-      footfall: this.api.getFootfall().pipe(
+      footfall: (isToday ? this.api.getFootfall() : this.api.getFootfall(fromUtc, toUtc)).pipe(
         catchError(err => {
           console.error('Error loading footfall:', err);
           return of(null);
         })
       ),
-      dwell: this.api.getDwell().pipe(
+      dwell: (isToday ? this.api.getDwell() : this.api.getDwell(fromUtc, toUtc)).pipe(
         catchError(err => {
           console.error('Error loading dwell:', err);
           return of(null);
         })
       ),
-      occupancy: this.api.getOccupancy().pipe(
+      occupancy: (isToday ? this.api.getOccupancy() : this.api.getOccupancy(fromUtc, toUtc)).pipe(
         catchError(err => {
           if (err.status === 404) {
             return of(null);
@@ -163,7 +188,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
           return of(null);
         })
       ),
-      demographics: this.api.getDemographics().pipe(
+      demographics: (isToday ? this.api.getDemographics() : this.api.getDemographics(fromUtc, toUtc)).pipe(
         catchError(err => {
           if (err.status === 404) {
             return of(null);
@@ -195,16 +220,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
         // Process occupancy
         if (results.occupancy) {
           this.processOccupancyData(results.occupancy);
-          // Set initial live occupancy from the most recent bucket if available
-          if (results.occupancy.buckets && Array.isArray(results.occupancy.buckets) && results.occupancy.buckets.length > 0) {
-            const latestBucket = results.occupancy.buckets[results.occupancy.buckets.length - 1];
-            const latestOccupancy = Number(latestBucket.avg || latestBucket.occupancy || latestBucket.value || 0);
-            if (latestOccupancy > 0) {
-              this.liveOccupancy = Math.round(latestOccupancy);
+          // Set initial live occupancy from the most recent bucket only if selected date is today
+          if (this.isSelectedDateToday()) {
+            if (results.occupancy.buckets && Array.isArray(results.occupancy.buckets) && results.occupancy.buckets.length > 0) {
+              const latestBucket = results.occupancy.buckets[results.occupancy.buckets.length - 1];
+              const latestOccupancy = Number(latestBucket.avg || latestBucket.occupancy || latestBucket.value || 0);
+              if (latestOccupancy > 0) {
+                this.liveOccupancy = Math.round(latestOccupancy);
+              }
             }
+          } else {
+            // For past or future dates, live occupancy should be 0
+            this.liveOccupancy = 0;
           }
         } else {
           this.occupancyChartData = [];
+          this.liveOccupancy = 0;
         }
         this.loadingOccupancy = false;
         
@@ -496,9 +527,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
           );
         }
         
-        // Only update if we got a valid number
-        if (!isNaN(occupancyValue) && occupancyValue >= 0) {
+        // Only update if we got a valid number AND selected date is today
+        // For past or future dates, live occupancy should remain 0
+        if (!isNaN(occupancyValue) && occupancyValue >= 0 && this.isSelectedDateToday()) {
           this.liveOccupancy = Math.round(occupancyValue);
+          this.cdr.markForCheck();
+        } else if (!this.isSelectedDateToday()) {
+          // Ensure live occupancy is 0 for past/future dates
+          this.liveOccupancy = 0;
           this.cdr.markForCheck();
         }
       },
@@ -688,5 +724,47 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.getMalePercentage();
     }
     return this._femalePercentage || 0;
+  }
+
+  getTotalCrowdPercentage(): number {
+    // Total percentage is always 100% (male% + female%)
+    return this.getMalePercentage() + this.getFemalePercentage();
+  }
+
+  onDateChange(date: Date | null): void {
+    if (date) {
+      this.selectedDate = date;
+      // Reset live occupancy when date changes - will be set correctly in loadDashboardData
+      this.liveOccupancy = 0;
+      this.loadDashboardData();
+      this.cdr.markForCheck();
+    }
+  }
+
+  isSelectedDateToday(): boolean {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selected = new Date(this.selectedDate);
+    selected.setHours(0, 0, 0, 0);
+    return selected.getTime() === today.getTime();
+  }
+
+  getDateDisplayText(): string {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selected = new Date(this.selectedDate);
+    selected.setHours(0, 0, 0, 0);
+    
+    if (selected.getTime() === today.getTime()) {
+      return 'Today';
+    }
+    
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (selected.getTime() === yesterday.getTime()) {
+      return 'Yesterday';
+    }
+    
+    return this.selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 }
