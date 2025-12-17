@@ -180,31 +180,81 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const allRequestsSub = forkJoin({
       footfall: this.api.getFootfall(fromUtc, toUtc).pipe(
         catchError(err => {
-          console.error('Error loading footfall:', err);
+          const errorInfo = {
+            type: err.name || 'HTTP Error',
+            status: err.status,
+            statusText: err.statusText,
+            message: err.message,
+            error: err.error,
+            endpoint: 'footfall',
+            timestamp: new Date().toISOString()
+          };
+          if (err.name === 'TimeoutError') {
+            console.error('⏱️ Dashboard: Footfall request timeout:', errorInfo);
+          } else {
+            console.error('❌ Dashboard: Error loading footfall:', errorInfo);
+          }
           return of(null);
         })
       ),
       dwell: this.api.getDwell(fromUtc, toUtc).pipe(
         catchError(err => {
-          console.error('Error loading dwell:', err);
+          const errorInfo = {
+            type: err.name || 'HTTP Error',
+            status: err.status,
+            statusText: err.statusText,
+            message: err.message,
+            error: err.error,
+            endpoint: 'dwell',
+            timestamp: new Date().toISOString()
+          };
+          if (err.name === 'TimeoutError') {
+            console.error('⏱️ Dashboard: Dwell request timeout:', errorInfo);
+          } else {
+            console.error('❌ Dashboard: Error loading dwell:', errorInfo);
+          }
           return of(null);
         })
       ),
       occupancy: this.api.getOccupancy(fromUtc, toUtc).pipe(
         catchError(err => {
+          const errorInfo = {
+            type: err.name || 'HTTP Error',
+            status: err.status,
+            statusText: err.statusText,
+            message: err.message,
+            error: err.error,
+            endpoint: 'occupancy',
+            timestamp: new Date().toISOString()
+          };
           if (err.status === 404) {
-            return of(null);
+            console.warn('⚠️ Dashboard: Occupancy data not found (404):', errorInfo);
+          } else if (err.name === 'TimeoutError') {
+            console.error('⏱️ Dashboard: Occupancy request timeout:', errorInfo);
+          } else {
+            console.error('❌ Dashboard: Error loading occupancy:', errorInfo);
           }
-          console.error('Error loading occupancy:', err);
           return of(null);
         })
       ),
       demographics: this.api.getDemographics(fromUtc, toUtc).pipe(
         catchError(err => {
+          const errorInfo = {
+            type: err.name || 'HTTP Error',
+            status: err.status,
+            statusText: err.statusText,
+            message: err.message,
+            error: err.error,
+            endpoint: 'demographics',
+            timestamp: new Date().toISOString()
+          };
           if (err.status === 404) {
-            return of(null);
+            console.warn('⚠️ Dashboard: Demographics data not found (404):', errorInfo);
+          } else if (err.name === 'TimeoutError') {
+            console.error('⏱️ Dashboard: Demographics request timeout:', errorInfo);
+          } else {
+            console.error('❌ Dashboard: Error loading demographics:', errorInfo);
           }
-          console.error('Error loading demographics:', err);
           return of(null);
         })
       )
@@ -266,7 +316,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         // Handle any forkJoin errors
-        console.error('Error loading dashboard data:', err);
+        const errorInfo = {
+          type: err.name || 'HTTP Error',
+          status: err.status,
+          statusText: err.statusText,
+          message: err.message,
+          error: err.error,
+          context: 'forkJoin - dashboard data loading',
+          timestamp: new Date().toISOString()
+        };
+        console.error('❌ Dashboard: Error loading dashboard data (forkJoin):', errorInfo);
         this.loadingFootfall = false;
         this.loadingDwell = false;
         this.loadingOccupancy = false;
@@ -300,29 +359,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
       let resultIndex = 0;
       for (const item of sampledItems) {
         // Handle different time field names: utc, local, timestamp, hour, time
-        // API returns times in the site's timezone, so use them as-is
         let time = '';
         if (item.local) {
           // Extract time from local string (e.g., "15/12/2025 09:00:00" -> "09:00")
-          // This is already in the site's timezone, so use it directly
           const localMatch = item.local.match(/(\d{2}:\d{2}):\d{2}/);
           if (localMatch) {
             time = localMatch[1];
           } else {
-            // Try to extract time from other formats
-            const timeMatch = item.local.match(/(\d{1,2}):(\d{2})/);
-            if (timeMatch) {
-              time = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
-            } else {
-              time = this.formatTime(item.local, true); // Pass flag to not convert timezone
-            }
+            time = this.formatTime(item.local);
           }
-        } else if (item.time) {
-          // If there's a time field, use it directly (likely already in site timezone)
-          time = String(item.time);
         } else {
-          // For UTC timestamps, format without timezone conversion (assume API handles conversion)
-          time = this.formatTime(item.utc || item.timestamp || item.hour, true);
+          time = this.formatTime(item.utc || item.timestamp || item.hour || item.time);
         }
         if (time) {
           const value = Number(item.avg || item.occupancy || item.count || item.value || item.average || 0);
@@ -378,29 +425,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
       for (const item of sampledItems) {
         // Handle different time field names: utc, local, timestamp, hour, time
-        // API returns times in the site's timezone, so use them as-is
         let time = '';
         if (item.local) {
           // Extract time from local string (e.g., "15/12/2025 09:00:00" -> "09:00")
-          // This is already in the site's timezone, so use it directly
           const localMatch = item.local.match(/(\d{2}:\d{2}):\d{2}/);
           if (localMatch) {
             time = localMatch[1];
           } else {
-            // Try to extract time from other formats
-            const timeMatch = item.local.match(/(\d{1,2}):(\d{2})/);
-            if (timeMatch) {
-              time = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
-            } else {
-              time = this.formatTime(item.local, true); // Pass flag to not convert timezone
-            }
+            time = this.formatTime(item.local);
           }
-        } else if (item.time) {
-          // If there's a time field, use it directly (likely already in site timezone)
-          time = String(item.time);
         } else {
-          // For UTC timestamps, format without timezone conversion (assume API handles conversion)
-          time = this.formatTime(item.utc || item.timestamp || item.hour, true);
+          time = this.formatTime(item.utc || item.timestamp || item.hour || item.time);
         }
         
         if (time) {
@@ -482,26 +517,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  private formatTime(timestamp: number | string, useAsIs: boolean = false): string {
+  private formatTime(timestamp: number | string): string {
     if (!timestamp && timestamp !== 0) return '';
     
     try {
-      // If useAsIs is true, assume timestamp is already in site's timezone
-      // and we should extract the time without timezone conversion
-      if (useAsIs && typeof timestamp === 'string') {
-        // Try to extract time directly from string formats
-        const timeMatch = timestamp.match(/(\d{1,2}):(\d{2})/);
-        if (timeMatch) {
-          return `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
-        }
-        // Handle "15/12/2025 09:00:00" format - extract time part
-        const dateStrMatch = timestamp.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
-        if (dateStrMatch) {
-          const [, , , , hour, minute] = dateStrMatch;
-          return `${hour}:${minute}`;
-        }
-      }
-      
       let date: Date;
       
       // Handle number (epoch milliseconds or seconds)
@@ -512,7 +531,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         // Handle string formats like "15/12/2025 09:00:00" (DD/MM/YYYY HH:mm:ss)
         const dateStrMatch = timestamp.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
         if (dateStrMatch) {
-          // Parse DD/MM/YYYY HH:mm:ss format - treat as local time (site timezone)
+          // Parse DD/MM/YYYY HH:mm:ss format
           const [, day, month, year, hour, minute, second] = dateStrMatch;
           date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
         } else {
@@ -530,16 +549,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
         return '';
       }
       
-      // If useAsIs, format without timezone conversion (use UTC methods to avoid browser timezone)
-      if (useAsIs) {
-        const hours = date.getUTCHours().toString().padStart(2, '0');
-        const minutes = date.getUTCMinutes().toString().padStart(2, '0');
-        return `${hours}:${minutes}`;
-      }
-      
-      // Otherwise, use local time (for backward compatibility)
       return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    } catch {
+    } catch (err) {
+      console.error('❌ Dashboard: Error formatting time:', {
+        error: err,
+        timestamp: timestamp,
+        timestampType: new Date().toISOString()
+      });
       // Try to extract hour if it's a number
       const hourNum = parseInt(timestamp.toString());
       if (!isNaN(hourNum) && hourNum >= 0 && hourNum <= 23) {
@@ -598,7 +614,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
         }
       },
       error: (err) => {
-        console.error('Socket subscription error (live_occupancy):', err);
+        const errorInfo = {
+          type: err.name || 'Socket Error',
+          message: err.message,
+          error: err,
+          event: 'live_occupancy',
+          timestamp: new Date().toISOString()
+        };
+        console.error('❌ Dashboard: Socket subscription error (live_occupancy):', errorInfo);
       }
     });
     this.socketSubscriptions.push(liveOccupancySub);
@@ -608,7 +631,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.handleAlert(alertData);
       },
       error: (err) => {
-        console.error('Socket subscription error (alert):', err);
+        const errorInfo = {
+          type: err.name || 'Socket Error',
+          message: err.message,
+          error: err,
+          event: 'alert',
+          timestamp: new Date().toISOString()
+        };
+        console.error('❌ Dashboard: Socket subscription error (alert):', errorInfo);
       }
     });
     this.socketSubscriptions.push(alertSub);
@@ -703,7 +733,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
               this.cdr.markForCheck();
             },
             error: (err) => {
-              console.error('Error refreshing footfall after alert:', err);
+              const errorInfo = {
+                type: err.name || 'HTTP Error',
+                status: err.status,
+                statusText: err.statusText,
+                message: err.message,
+                error: err.error,
+                context: 'footfall refresh after alert',
+                timestamp: new Date().toISOString()
+              };
+              console.error('❌ Dashboard: Error refreshing footfall after alert:', errorInfo);
               this.footfallRefreshPending = false;
             }
           });

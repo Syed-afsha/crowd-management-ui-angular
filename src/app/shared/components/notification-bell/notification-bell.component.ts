@@ -92,7 +92,12 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
       // Clear cache after timeout to refresh relative times
       setTimeout(() => this.timeCache.delete(cacheKey), this.cacheTimeout);
       return result;
-    } catch {
+    } catch (err) {
+      console.error('❌ NotificationBell: Error formatting alert time:', {
+        error: err,
+        timestamp: timestamp,
+        timestampType: new Date().toISOString()
+      });
       const result = 'Invalid time';
       this.timeCache.set(cacheKey, result);
       return result;

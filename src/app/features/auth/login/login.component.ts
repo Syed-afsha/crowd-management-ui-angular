@@ -62,8 +62,17 @@ export class LoginComponent {
         }
       },
       error: (err) => {
-        // Security: Never log credentials, tokens, or detailed error info
-        // Show user-friendly error messages only
+        // Log all login errors to console for debugging
+        console.error('❌ Login error:', {
+          status: err.status,
+          statusText: err.statusText,
+          message: err.message,
+          error: err.error,
+          url: err.url,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Show user-friendly error messages
         if (err.status === 0) {
           this.error = 'Network error: Cannot connect to server. Please check your connection.';
         } else if (err.status === 401) {

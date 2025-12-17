@@ -16,26 +16,40 @@ export class AuthService {
     return this.http
       .post<any>(url, { email, password })
       .pipe(
-        tap(res => {
-          if (res?.token) {
-            localStorage.setItem(this.tokenKey, res.token);
-            // Store user info if available in response
-            if (res.user || res.email || res.name || res.username) {
-              const userInfo = {
-                email: res.email || res.user?.email || email,
-                name: res.name || res.user?.name || res.username || res.user?.username || email.split('@')[0],
-                imageUrl: res.imageUrl || res.user?.imageUrl || res.avatar || res.user?.avatar || res.profileImage || res.user?.profileImage || null
-              };
-              localStorage.setItem(this.userKey, JSON.stringify(userInfo));
+        tap({
+          next: (res) => {
+            if (res?.token) {
+              localStorage.setItem(this.tokenKey, res.token);
+              // Store user info if available in response
+              if (res.user || res.email || res.name || res.username) {
+                const userInfo = {
+                  email: res.email || res.user?.email || email,
+                  name: res.name || res.user?.name || res.username || res.user?.username || email.split('@')[0],
+                  imageUrl: res.imageUrl || res.user?.imageUrl || res.avatar || res.user?.avatar || res.profileImage || res.user?.profileImage || null
+                };
+                localStorage.setItem(this.userKey, JSON.stringify(userInfo));
+              } else {
+                // Store basic info from email
+                const userInfo = {
+                  email: email,
+                  name: email.split('@')[0],
+                  imageUrl: null
+                };
+                localStorage.setItem(this.userKey, JSON.stringify(userInfo));
+              }
             } else {
-              // Store basic info from email
-              const userInfo = {
-                email: email,
-                name: email.split('@')[0],
-                imageUrl: null
-              };
-              localStorage.setItem(this.userKey, JSON.stringify(userInfo));
+              console.error('❌ Login response missing token:', res);
             }
+          },
+          error: (err) => {
+            console.error('❌ AuthService login error:', {
+              status: err.status,
+              statusText: err.statusText,
+              message: err.message,
+              error: err.error,
+              url: url,
+              timestamp: new Date().toISOString()
+            });
           }
         })
       );

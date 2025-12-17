@@ -77,7 +77,18 @@ export class EntriesComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       },
       error: (err) => {
-        console.error('Error loading entries:', err);
+        const errorInfo = {
+          type: err.name || 'HTTP Error',
+          status: err.status,
+          statusText: err.statusText,
+          message: err.message,
+          error: err.error,
+          context: 'entry-exit records',
+          page: this.currentPage,
+          pageSize: this.pageSize,
+          timestamp: new Date().toISOString()
+        };
+        console.error('❌ Entries: Error loading entries:', errorInfo);
         this.records = [];
         this.loading = false;
         this.cdr.markForCheck();
@@ -181,7 +192,12 @@ export class EntriesComponent implements OnInit, OnDestroy {
       });
       this.dateTimeCache.set(cacheKey, result);
       return result;
-    } catch {
+    } catch (err) {
+      console.error('❌ Entries: Error formatting date/time:', {
+        error: err,
+        dateTime: dateTime,
+        timestamp: new Date().toISOString()
+      });
       const result = '-';
       this.dateTimeCache.set(cacheKey, result);
       return result;

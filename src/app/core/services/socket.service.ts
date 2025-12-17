@@ -64,12 +64,23 @@ export class SocketService implements OnDestroy {
       this.isInitializing = false;
     });
 
-    this.socket.on('connect_error', (error) => {
-      console.error('Socket.IO connection error:', error);
+    this.socket.on('connect_error', (error: any) => {
+      console.error('❌ Socket.IO connection error:', {
+        message: error.message,
+        type: error.type,
+        description: error.description,
+        context: error.context,
+        transport: error.transport,
+        timestamp: new Date().toISOString()
+      });
       this.isInitializing = false;
     });
 
     this.socket.on('disconnect', (reason) => {
+      console.warn('⚠️ Socket.IO disconnected:', {
+        reason: reason,
+        timestamp: new Date().toISOString()
+      });
       this.isInitializing = false;
     });
   }

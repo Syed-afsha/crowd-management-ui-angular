@@ -19,6 +19,30 @@ console.warn = function(...args: any[]) {
   originalWarn.apply(console, args);
 };
 
+// Global error handler to catch all unhandled errors
+const originalError = console.error;
+window.addEventListener('error', (event) => {
+  console.error('🚨 Global Error Handler - Unhandled Error:', {
+    message: event.message,
+    filename: event.filename,
+    lineno: event.lineno,
+    colno: event.colno,
+    error: event.error,
+    stack: event.error?.stack,
+    timestamp: new Date().toISOString()
+  });
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('🚨 Global Error Handler - Unhandled Promise Rejection:', {
+    reason: event.reason,
+    promise: event.promise,
+    timestamp: new Date().toISOString()
+  });
+  // Prevent default browser behavior
+  event.preventDefault();
+});
+
 export const appConfig: ApplicationConfig = {
   providers: [
     provideRouter(routes),

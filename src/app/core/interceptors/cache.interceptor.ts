@@ -1,5 +1,5 @@
 import { HttpInterceptorFn, HttpRequest, HttpResponse } from '@angular/common/http';
-import { of, tap } from 'rxjs';
+import { of, tap, catchError } from 'rxjs';
 import { inject } from '@angular/core';
 import { AuthService } from '../services/auth.service';
 
@@ -51,33 +51,60 @@ export const CacheInterceptor: HttpInterceptorFn = (req, next) => {
   }
 
   return next(req).pipe(
-    tap(event => {
-      if (event instanceof HttpResponse) {
-        // Clean up old entries if cache is too large
-        if (cache.size >= MAX_CACHE_SIZE) {
-          const now = Date.now();
-          const keysToDelete: string[] = [];
-          cache.forEach((value, key) => {
-            if (now - value.timestamp > CACHE_TTL) {
-              keysToDelete.push(key);
-            }
-          });
-          keysToDelete.forEach(key => cache.delete(key));
-          
-          // If still too large, remove oldest entries
+    tap({
+      next: (event) => {
+        if (event instanceof HttpResponse) {
+          // Clean up old entries if cache is too large
           if (cache.size >= MAX_CACHE_SIZE) {
-            const sortedEntries = Array.from(cache.entries())
-              .sort((a, b) => a[1].timestamp - b[1].timestamp);
-            const toRemove = sortedEntries.slice(0, Math.floor(MAX_CACHE_SIZE / 2));
-            toRemove.forEach(([key]) => cache.delete(key));
+            const now = Date.now();
+            const keysToDelete: string[] = [];
+            cache.forEach((value, key) => {
+              if (now - value.timestamp > CACHE_TTL) {
+                keysToDelete.push(key);
+              }
+            });
+            keysToDelete.forEach(key => cache.delete(key));
+            
+            // If still too large, remove oldest entries
+            if (cache.size >= MAX_CACHE_SIZE) {
+              const sortedEntries = Array.from(cache.entries())
+                .sort((a, b) => a[1].timestamp - b[1].timestamp);
+              const toRemove = sortedEntries.slice(0, Math.floor(MAX_CACHE_SIZE / 2));
+              toRemove.forEach(([key]) => cache.delete(key));
+            }
           }
+          
+          cache.set(cacheKey, {
+            response: event.clone(),
+            timestamp: Date.now()
+          });
         }
-        
-        cache.set(cacheKey, {
-          response: event.clone(),
-          timestamp: Date.now()
+      },
+      error: (err) => {
+        console.error('❌ CacheInterceptor: Error processing request:', {
+          type: err.name || 'HTTP Error',
+          status: err.status,
+          statusText: err.statusText,
+          message: err.message,
+          error: err.error,
+          url: req.url,
+          method: req.method,
+          timestamp: new Date().toISOString()
         });
       }
+    }),
+    catchError(err => {
+      console.error('❌ CacheInterceptor: Request failed:', {
+        type: err.name || 'HTTP Error',
+        status: err.status,
+        statusText: err.statusText,
+        message: err.message,
+        error: err.error,
+        url: req.url,
+        method: req.method,
+        timestamp: new Date().toISOString()
+      });
+      throw err; // Re-throw to let error handlers in components/services handle it
     })
   );
 };

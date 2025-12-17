@@ -34,7 +34,16 @@ export class ApiService {
         }
       }),
       catchError(error => {
-        console.error('Failed to fetch sites:', error);
+        const errorInfo = {
+          type: error.name || 'HTTP Error',
+          status: error.status,
+          statusText: error.statusText,
+          message: error.message,
+          error: error.error,
+          url: `${this.base}/api/sites`,
+          timestamp: new Date().toISOString()
+        };
+        console.error('❌ Failed to fetch sites:', errorInfo);
         return of([]);
       }),
       shareReplay(1)
@@ -91,9 +100,20 @@ export class ApiService {
         }
       }),
       catchError(err => {
-        // Only log non-timeout errors to reduce console noise
-        if (err.name !== 'TimeoutError') {
-          console.error('Footfall request failed:', err);
+        // Log ALL errors including timeouts for debugging
+        const errorInfo = {
+          type: err.name || 'HTTP Error',
+          status: err.status,
+          statusText: err.statusText,
+          message: err.message,
+          error: err.error,
+          url: `${this.base}/api/analytics/footfall`,
+          timestamp: new Date().toISOString()
+        };
+        if (err.name === 'TimeoutError') {
+          console.error('⏱️ Footfall request timeout:', errorInfo);
+        } else {
+          console.error('❌ Footfall request failed:', errorInfo);
         }
         return of(null);
       }),
@@ -111,9 +131,20 @@ export class ApiService {
         }
       }),
       catchError(err => {
-        // Only log non-timeout errors to reduce console noise
-        if (err.name !== 'TimeoutError') {
-          console.error('Dwell request failed:', err);
+        // Log ALL errors including timeouts for debugging
+        const errorInfo = {
+          type: err.name || 'HTTP Error',
+          status: err.status,
+          statusText: err.statusText,
+          message: err.message,
+          error: err.error,
+          url: `${this.base}/api/analytics/dwell`,
+          timestamp: new Date().toISOString()
+        };
+        if (err.name === 'TimeoutError') {
+          console.error('⏱️ Dwell request timeout:', errorInfo);
+        } else {
+          console.error('❌ Dwell request failed:', errorInfo);
         }
         return of(null);
       }),
@@ -126,12 +157,22 @@ export class ApiService {
     return this.http.post<any>(`${this.base}/api/analytics/occupancy`, payload).pipe(
       timeout(this.REQUEST_TIMEOUT),
       catchError(err => {
+        // Log ALL errors including timeouts and 404s for debugging
+        const errorInfo = {
+          type: err.name || 'HTTP Error',
+          status: err.status,
+          statusText: err.statusText,
+          message: err.message,
+          error: err.error,
+          url: `${this.base}/api/analytics/occupancy`,
+          timestamp: new Date().toISOString()
+        };
         if (err.status === 404) {
-          return of(null);
-        }
-        // Only log non-timeout errors to reduce console noise
-        if (err.name !== 'TimeoutError') {
-          console.error('Occupancy request failed:', err);
+          console.warn('⚠️ Occupancy data not found (404):', errorInfo);
+        } else if (err.name === 'TimeoutError') {
+          console.error('⏱️ Occupancy request timeout:', errorInfo);
+        } else {
+          console.error('❌ Occupancy request failed:', errorInfo);
         }
         return of(null);
       }),
@@ -145,12 +186,22 @@ export class ApiService {
     return this.http.post<any>(`${this.base}/api/analytics/demographics`, payload).pipe(
       timeout(this.REQUEST_TIMEOUT),
       catchError(err => {
+        // Log ALL errors including timeouts and 404s for debugging
+        const errorInfo = {
+          type: err.name || 'HTTP Error',
+          status: err.status,
+          statusText: err.statusText,
+          message: err.message,
+          error: err.error,
+          url: `${this.base}/api/analytics/demographics`,
+          timestamp: new Date().toISOString()
+        };
         if (err.status === 404) {
-          return of(null);
-        }
-        // Only log non-timeout errors to reduce console noise
-        if (err.name !== 'TimeoutError') {
-          console.error('Demographics request failed:', err);
+          console.warn('⚠️ Demographics data not found (404):', errorInfo);
+        } else if (err.name === 'TimeoutError') {
+          console.error('⏱️ Demographics request timeout:', errorInfo);
+        } else {
+          console.error('❌ Demographics request failed:', errorInfo);
         }
         return of(null);
       }),
@@ -169,8 +220,20 @@ export class ApiService {
       return this.http.post<any>(`${this.base}/api/analytics/footfall`, payload).pipe(
         timeout(this.REQUEST_TIMEOUT),
         catchError(err => {
-          if (err.name !== 'TimeoutError') {
-            console.error('Footfall request failed:', err);
+          // Log ALL errors including timeouts for debugging
+          const errorInfo = {
+            type: err.name || 'HTTP Error',
+            status: err.status,
+            statusText: err.statusText,
+            message: err.message,
+            error: err.error,
+            url: `${this.base}/api/analytics/footfall`,
+            timestamp: new Date().toISOString()
+          };
+          if (err.name === 'TimeoutError') {
+            console.error('⏱️ Footfall request timeout:', errorInfo);
+          } else {
+            console.error('❌ Footfall request failed:', errorInfo);
           }
           return of(null);
         })
@@ -194,8 +257,20 @@ export class ApiService {
       return this.http.post<any>(`${this.base}/api/analytics/dwell`, payload).pipe(
         timeout(this.REQUEST_TIMEOUT),
         catchError(err => {
-          if (err.name !== 'TimeoutError') {
-            console.error('Dwell request failed:', err);
+          // Log ALL errors including timeouts for debugging
+          const errorInfo = {
+            type: err.name || 'HTTP Error',
+            status: err.status,
+            statusText: err.statusText,
+            message: err.message,
+            error: err.error,
+            url: `${this.base}/api/analytics/dwell`,
+            timestamp: new Date().toISOString()
+          };
+          if (err.name === 'TimeoutError') {
+            console.error('⏱️ Dwell request timeout:', errorInfo);
+          } else {
+            console.error('❌ Dwell request failed:', errorInfo);
           }
           return of(null);
         })
@@ -216,9 +291,20 @@ export class ApiService {
     ).pipe(
       timeout(this.REQUEST_TIMEOUT),
       catchError(err => {
-        // Only log non-timeout errors to reduce console noise
-        if (err.name !== 'TimeoutError') {
-          console.error('Entry-exit request failed:', err);
+        // Log ALL errors including timeouts for debugging
+        const errorInfo = {
+          type: err.name || 'HTTP Error',
+          status: err.status,
+          statusText: err.statusText,
+          message: err.message,
+          error: err.error,
+          url: `${this.base}/api/analytics/entry-exit`,
+          timestamp: new Date().toISOString()
+        };
+        if (err.name === 'TimeoutError') {
+          console.error('⏱️ Entry-exit request timeout:', errorInfo);
+        } else {
+          console.error('❌ Entry-exit request failed:', errorInfo);
         }
         return of({ records: [], data: [], totalRecords: 0, total: 0 });
       }),
@@ -247,11 +333,22 @@ export class ApiService {
       return this.http.post<any>(`${this.base}/api/analytics/occupancy`, payload).pipe(
         timeout(this.REQUEST_TIMEOUT),
         catchError(err => {
+          // Log ALL errors including timeouts and 404s for debugging
+          const errorInfo = {
+            type: err.name || 'HTTP Error',
+            status: err.status,
+            statusText: err.statusText,
+            message: err.message,
+            error: err.error,
+            url: `${this.base}/api/analytics/occupancy`,
+            timestamp: new Date().toISOString()
+          };
           if (err.status === 404) {
-            return of(null);
-          }
-          if (err.name !== 'TimeoutError') {
-            console.error('Occupancy request failed:', err);
+            console.warn('⚠️ Occupancy data not found (404):', errorInfo);
+          } else if (err.name === 'TimeoutError') {
+            console.error('⏱️ Occupancy request timeout:', errorInfo);
+          } else {
+            console.error('❌ Occupancy request failed:', errorInfo);
           }
           return of(null);
         })
@@ -275,11 +372,22 @@ export class ApiService {
       return this.http.post<any>(`${this.base}/api/analytics/demographics`, payload).pipe(
         timeout(this.REQUEST_TIMEOUT),
         catchError(err => {
+          // Log ALL errors including timeouts and 404s for debugging
+          const errorInfo = {
+            type: err.name || 'HTTP Error',
+            status: err.status,
+            statusText: err.statusText,
+            message: err.message,
+            error: err.error,
+            url: `${this.base}/api/analytics/demographics`,
+            timestamp: new Date().toISOString()
+          };
           if (err.status === 404) {
-            return of(null);
-          }
-          if (err.name !== 'TimeoutError') {
-            console.error('Demographics request failed:', err);
+            console.warn('⚠️ Demographics data not found (404):', errorInfo);
+          } else if (err.name === 'TimeoutError') {
+            console.error('⏱️ Demographics request timeout:', errorInfo);
+          } else {
+            console.error('❌ Demographics request failed:', errorInfo);
           }
           return of(null);
         })
