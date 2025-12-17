@@ -149,7 +149,7 @@ export class SocketService implements OnDestroy {
     return this.eventSubjects.get(event)!.asObservable().pipe(share());
   }
 
-  ngOnDestroy(): void {
+  disconnect(): void {
     this.eventSubjects.forEach(subject => subject.complete());
     this.eventSubjects.clear();
 
@@ -158,5 +158,10 @@ export class SocketService implements OnDestroy {
       this.socket.disconnect();
       this.socket = null;
     }
+    this.isInitializing = false;
+  }
+
+  ngOnDestroy(): void {
+    this.disconnect();
   }
 }

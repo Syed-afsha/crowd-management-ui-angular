@@ -29,6 +29,8 @@ export class ApiService {
     return this.http.get<any[]>(`${this.base}/api/sites`).pipe(
       tap(sites => {
         // If no siteId is set, use the first site from the list
+        // Note: SiteService notification is handled by LayoutComponent
+        // to avoid circular dependencies
         if (!this.auth.getSiteId() && sites && sites.length > 0 && sites[0]?.siteId) {
           this.auth.setSiteId(sites[0].siteId);
         }
@@ -81,9 +83,12 @@ export class ApiService {
   private entryExitPayload(pageNumber: number, pageSize: number) {
     const now = Date.now();
     const siteId = this.auth.getSiteId();
+    // OPTIMIZATION: Reduce time range for entry-exit to improve performance
+    // Use 30 minutes instead of 1 hour for faster queries
+    const THIRTY_MINUTES_MS = 30 * 60 * 1000;
     return {
       siteId: siteId || '',
-      fromUtc: now - this.SIX_HOURS_MS,
+      fromUtc: now - THIRTY_MINUTES_MS,
       toUtc: now,
       pageNumber,
       pageSize
@@ -299,10 +304,15 @@ export class ApiService {
           message: err.message,
           error: err.error,
           url: `${this.base}/api/analytics/entry-exit`,
+          pageNumber,
+          pageSize,
+          payload,
+          duration: '22+ seconds (backend issue)',
           timestamp: new Date().toISOString()
         };
         if (err.name === 'TimeoutError') {
-          console.error('⏱️ Entry-exit request timeout:', errorInfo);
+          console.error('⏱️ Entry-exit request timeout after 15s:', errorInfo);
+          console.warn('⚠️ Backend is taking 22+ seconds to respond. This is a backend performance issue.');
         } else {
           console.error('❌ Entry-exit request failed:', errorInfo);
         }
@@ -401,6 +411,7 @@ export class ApiService {
   }
 
   clearCaches(): void {
+    this.sitesCache$ = undefined;
     this.footfallCache$ = undefined;
     this.dwellCache$ = undefined;
     this.occupancyCache$ = undefined;

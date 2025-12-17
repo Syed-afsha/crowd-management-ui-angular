@@ -12,7 +12,7 @@ import { SiteService } from '../../core/services/site.service';
 import { NotificationService, Alert } from '../../core/services/notification.service';
 import { AuthService } from '../../core/services/auth.service';
 import { NgxChartsModule } from '@swimlane/ngx-charts';
-import { Subscription, forkJoin, debounceTime, distinctUntilChanged, catchError, of } from 'rxjs';
+import { Subscription, forkJoin, debounceTime, distinctUntilChanged, catchError, of, Subject, takeUntil } from 'rxjs';
 import { curveCardinal } from 'd3-shape';
 
 @Component({
@@ -78,6 +78,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private socketSubscriptions: Subscription[] = [];
   private httpSubscriptions: Subscription[] = [];
   private footfallRefreshPending = false;
+  private destroy$ = new Subject<void>();
 
   constructor(
     private api: ApiService, 
@@ -92,34 +93,34 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // Initialize notification service with today's date
     this.notificationService.setSelectedDate(this.selectedDate);
     
-    // Start loading data immediately if siteId exists, otherwise wait for site
-    const siteId = this.auth.getSiteId();
-    if (siteId) {
-      // SiteId exists, load data immediately (parallel with sites API)
-      this.loadDashboardData();
-    } else {
-      // Wait for site to be set, then load data
-      const initialSiteSub = this.siteService.siteChange$.subscribe(() => {
+    // Always wait for SiteService notification to ensure siteId is validated
+    // This prevents loading with invalid/stale siteId from previous session
+    let hasLoadedInitialData = false;
+    
+    // Single subscription to handle both initial load and subsequent site changes
+    const siteChangeSub = this.siteService.siteChange$.pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      if (!hasLoadedInitialData) {
+        // Initial load - no need to clear caches as this is fresh data
+        hasLoadedInitialData = true;
         this.loadDashboardData();
-        // Unsubscribe after first site is set
-        initialSiteSub.unsubscribe();
-      });
-      this.httpSubscriptions.push(initialSiteSub);
-    }
-    
-    this.setupSocketListeners();
-    
-    // Listen for subsequent site changes and reload data
-    const siteChangeSub = this.siteService.siteChange$.subscribe(() => {
-      // Clear API service caches for fresh data
-      this.api.clearCaches();
-      // Reload data (cache is already cleared by SiteService)
-      this.loadDashboardData();
+      } else {
+        // Subsequent site changes - clear caches for fresh data
+        this.api.clearCaches();
+        this.loadDashboardData();
+      }
     });
     this.httpSubscriptions.push(siteChangeSub);
+    
+    this.setupSocketListeners();
   }
 
   ngOnDestroy(): void {
+    // Signal all subscriptions to complete
+    this.destroy$.next();
+    this.destroy$.complete();
+    
     this.socketSubscriptions.forEach(sub => sub.unsubscribe());
     this.socketSubscriptions = [];
     this.httpSubscriptions.forEach(sub => sub.unsubscribe());
@@ -127,12 +128,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private loadDashboardData(): void {
-    // Unsubscribe from any pending HTTP requests to prevent race conditions
-    this.httpSubscriptions.forEach(sub => {
-      if (sub && !sub.closed) {
-        sub.unsubscribe();
-      }
-    });
+    // Don't unsubscribe from in-flight requests - let them complete naturally
+    // Only track new subscriptions to clean up on destroy
     this.httpSubscriptions = [];
     
     // OPTIMIZATION: Don't reset data immediately - keep existing data visible while loading
@@ -145,14 +142,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // Keep main loading false initially - will be set to true only if no cached data exists
     this.loading = false;
     this.cdr.markForCheck();
-    
-    // OPTIMIZATION: Fire all requests in parallel using forkJoin
-    // Ultra-optimized for 1-2 second load times:
-    // - 2 hour time range (reduced from 6 hours)
-    // - 5 second timeout (reduced from 8 seconds)
-    // - 20 data points max (reduced from 30)
-    // - 2 minute cache TTL (cached data loads instantly)
-    // - Request deduplication prevents duplicate calls
     
     // Calculate date range based on selected date
     // All charts: 8:00 to 18:00 (10 hours) as per prototype
@@ -175,9 +164,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // For past/future dates, use 18:00
     const toUtc = isToday ? Math.min(Date.now(), selectedDateEnd.getTime()) : selectedDateEnd.getTime();
     
-    // All charts use 8:00 to 18:00 (10 hours) time range
-    // Use startWith to show loading state immediately, but don't block UI
-    const allRequestsSub = forkJoin({
+    // PHASE 1: High Priority - Summary Cards (Footfall & Dwell)
+    // These APIs power summary cards and must load first
+    const phase1Sub = forkJoin({
       footfall: this.api.getFootfall(fromUtc, toUtc).pipe(
         catchError(err => {
           const errorInfo = {
@@ -215,127 +204,199 @@ export class DashboardComponent implements OnInit, OnDestroy {
           }
           return of(null);
         })
-      ),
-      occupancy: this.api.getOccupancy(fromUtc, toUtc).pipe(
-        catchError(err => {
-          const errorInfo = {
-            type: err.name || 'HTTP Error',
-            status: err.status,
-            statusText: err.statusText,
-            message: err.message,
-            error: err.error,
-            endpoint: 'occupancy',
-            timestamp: new Date().toISOString()
-          };
-          if (err.status === 404) {
-            console.warn('⚠️ Dashboard: Occupancy data not found (404):', errorInfo);
-          } else if (err.name === 'TimeoutError') {
-            console.error('⏱️ Dashboard: Occupancy request timeout:', errorInfo);
-          } else {
-            console.error('❌ Dashboard: Error loading occupancy:', errorInfo);
-          }
-          return of(null);
-        })
-      ),
-      demographics: this.api.getDemographics(fromUtc, toUtc).pipe(
-        catchError(err => {
-          const errorInfo = {
-            type: err.name || 'HTTP Error',
-            status: err.status,
-            statusText: err.statusText,
-            message: err.message,
-            error: err.error,
-            endpoint: 'demographics',
-            timestamp: new Date().toISOString()
-          };
-          if (err.status === 404) {
-            console.warn('⚠️ Dashboard: Demographics data not found (404):', errorInfo);
-          } else if (err.name === 'TimeoutError') {
-            console.error('⏱️ Dashboard: Demographics request timeout:', errorInfo);
-          } else {
-            console.error('❌ Dashboard: Error loading demographics:', errorInfo);
-          }
-          return of(null);
-        })
       )
-    }).subscribe({
-      next: (results) => {
+    }).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
+      next: (phase1Results) => {
         // Process footfall
-        if (results.footfall) {
-          const footfallValue = results.footfall?.footfall ?? results.footfall?.count ?? results.footfall?.todaysFootfall ?? results.footfall?.totalFootfall ?? 0;
+        if (phase1Results.footfall) {
+          const footfallValue = phase1Results.footfall?.footfall ?? phase1Results.footfall?.count ?? phase1Results.footfall?.todaysFootfall ?? phase1Results.footfall?.totalFootfall ?? 0;
           this.todaysFootfall = typeof footfallValue === 'number' ? Math.round(footfallValue) : parseInt(footfallValue) || 0;
-          this.previousFootfall = results.footfall?.previousFootfall ?? results.footfall?.previousCount ?? results.footfall?.yesterdaysFootfall ?? 0;
+          this.previousFootfall = phase1Results.footfall?.previousFootfall ?? phase1Results.footfall?.previousCount ?? phase1Results.footfall?.yesterdaysFootfall ?? 0;
           this._footfallChange = undefined; // Invalidate cache
         }
         this.loadingFootfall = false;
         
         // Process dwell
-        if (results.dwell) {
-          const dwellValue = results.dwell?.avgDwellMinutes ?? results.dwell?.avgDwellTime ?? results.dwell?.averageDwellTime ?? results.dwell?.dwellMinutes ?? 0;
+        if (phase1Results.dwell) {
+          const dwellValue = phase1Results.dwell?.avgDwellMinutes ?? phase1Results.dwell?.avgDwellTime ?? phase1Results.dwell?.averageDwellTime ?? phase1Results.dwell?.dwellMinutes ?? 0;
           this.avgDwellTime = typeof dwellValue === 'number' ? Math.round(dwellValue * 10) / 10 : parseFloat(dwellValue) || 0;
-          this.previousDwellTime = results.dwell?.previousAvgDwellMinutes ?? results.dwell?.previousAvgDwellTime ?? results.dwell?.previousAverageDwellTime ?? 0;
+          this.previousDwellTime = phase1Results.dwell?.previousAvgDwellMinutes ?? phase1Results.dwell?.previousAvgDwellTime ?? phase1Results.dwell?.previousAverageDwellTime ?? 0;
           this._dwellTimeChange = undefined; // Invalidate cache
         }
         this.loadingDwell = false;
         
-        // Process occupancy
-        if (results.occupancy) {
-          this.processOccupancyData(results.occupancy);
-          // Set initial live occupancy from the most recent bucket only if selected date is today
-          if (this.isSelectedDateToday()) {
-            if (results.occupancy.buckets && Array.isArray(results.occupancy.buckets) && results.occupancy.buckets.length > 0) {
-              const latestBucket = results.occupancy.buckets[results.occupancy.buckets.length - 1];
-              const latestOccupancy = Number(latestBucket.avg || latestBucket.occupancy || latestBucket.value || 0);
-              if (latestOccupancy > 0) {
-                this.liveOccupancy = Math.round(latestOccupancy);
-              }
-            }
-          } else {
-            // For past or future dates, live occupancy should be 0
-            this.liveOccupancy = 0;
-          }
-        } else {
-          this.occupancyChartData = [];
-          this.liveOccupancy = 0;
-        }
-        this.loadingOccupancy = false;
-        
-        // Process demographics
-        if (results.demographics) {
-          this.processDemographicsData(results.demographics);
-          this.processDemographicsAnalysisData(results.demographics);
-        } else {
-          this.demographicsChartData = [];
-          this.demographicsAnalysisChartData = [];
-        }
-        this.loadingDemographics = false;
-        
-        // All requests completed
+        // Phase 1 complete - trigger change detection for summary cards
         this.checkAllLoaded();
         this.cdr.markForCheck();
+        
+        // PHASE 2: Low Priority - Charts (Occupancy & Demographics)
+        // These are heavy APIs and load in background after Phase 1 completes
+        // Must NOT block summary cards
+        const phase2Sub = forkJoin({
+          occupancy: this.api.getOccupancy(fromUtc, toUtc).pipe(
+            catchError(err => {
+              const errorInfo = {
+                type: err.name || 'HTTP Error',
+                status: err.status,
+                statusText: err.statusText,
+                message: err.message,
+                error: err.error,
+                endpoint: 'occupancy',
+                timestamp: new Date().toISOString()
+              };
+              if (err.status === 404) {
+                console.warn('⚠️ Dashboard: Occupancy data not found (404):', errorInfo);
+              } else if (err.name === 'TimeoutError') {
+                console.error('⏱️ Dashboard: Occupancy request timeout:', errorInfo);
+              } else {
+                console.error('❌ Dashboard: Error loading occupancy:', errorInfo);
+              }
+              return of(null);
+            })
+          ),
+          demographics: this.api.getDemographics(fromUtc, toUtc).pipe(
+            catchError(err => {
+              const errorInfo = {
+                type: err.name || 'HTTP Error',
+                status: err.status,
+                statusText: err.statusText,
+                message: err.message,
+                error: err.error,
+                endpoint: 'demographics',
+                timestamp: new Date().toISOString()
+              };
+              if (err.status === 404) {
+                console.warn('⚠️ Dashboard: Demographics data not found (404):', errorInfo);
+              } else if (err.name === 'TimeoutError') {
+                console.error('⏱️ Dashboard: Demographics request timeout:', errorInfo);
+              } else {
+                console.error('❌ Dashboard: Error loading demographics:', errorInfo);
+              }
+              return of(null);
+            })
+          )
+        }).pipe(
+          takeUntil(this.destroy$)
+        ).subscribe({
+          next: (phase2Results) => {
+            // Process occupancy
+            if (phase2Results.occupancy) {
+              this.processOccupancyData(phase2Results.occupancy);
+              // Set initial live occupancy from the most recent bucket only if selected date is today
+              if (this.isSelectedDateToday()) {
+                if (phase2Results.occupancy.buckets && Array.isArray(phase2Results.occupancy.buckets) && phase2Results.occupancy.buckets.length > 0) {
+                  const latestBucket = phase2Results.occupancy.buckets[phase2Results.occupancy.buckets.length - 1];
+                  const latestOccupancy = Number(latestBucket.avg || latestBucket.occupancy || latestBucket.value || 0);
+                  if (latestOccupancy > 0) {
+                    this.liveOccupancy = Math.round(latestOccupancy);
+                  }
+                }
+              } else {
+                // For past or future dates, live occupancy should be 0
+                this.liveOccupancy = 0;
+              }
+            } else {
+              this.occupancyChartData = [];
+              this.liveOccupancy = 0;
+            }
+            this.loadingOccupancy = false;
+            
+            // Process demographics
+            if (phase2Results.demographics) {
+              this.processDemographicsData(phase2Results.demographics);
+              this.processDemographicsAnalysisData(phase2Results.demographics);
+            } else {
+              this.demographicsChartData = [];
+              this.demographicsAnalysisChartData = [];
+            }
+            this.loadingDemographics = false;
+            
+            // Phase 2 complete
+            this.checkAllLoaded();
+            this.cdr.markForCheck();
+          },
+          error: (err) => {
+            // Handle Phase 2 errors
+            const errorInfo = {
+              type: err.name || 'HTTP Error',
+              status: err.status,
+              statusText: err.statusText,
+              message: err.message,
+              error: err.error,
+              context: 'forkJoin - Phase 2 (charts)',
+              timestamp: new Date().toISOString()
+            };
+            console.error('❌ Dashboard: Error loading Phase 2 data (charts):', errorInfo);
+            this.loadingOccupancy = false;
+            this.loadingDemographics = false;
+            this.checkAllLoaded();
+            this.cdr.markForCheck();
+          }
+        });
+        
+        this.httpSubscriptions.push(phase2Sub);
       },
       error: (err) => {
-        // Handle any forkJoin errors
+        // Handle Phase 1 errors
         const errorInfo = {
           type: err.name || 'HTTP Error',
           status: err.status,
           statusText: err.statusText,
           message: err.message,
           error: err.error,
-          context: 'forkJoin - dashboard data loading',
+          context: 'forkJoin - Phase 1 (summary cards)',
           timestamp: new Date().toISOString()
         };
-        console.error('❌ Dashboard: Error loading dashboard data (forkJoin):', errorInfo);
+        console.error('❌ Dashboard: Error loading Phase 1 data (summary cards):', errorInfo);
         this.loadingFootfall = false;
         this.loadingDwell = false;
-        this.loadingOccupancy = false;
-        this.loadingDemographics = false;
         this.checkAllLoaded();
         this.cdr.markForCheck();
+        
+        // Even if Phase 1 fails, try Phase 2 (charts) in background
+        const phase2Sub = forkJoin({
+          occupancy: this.api.getOccupancy(fromUtc, toUtc).pipe(
+            catchError(() => of(null))
+          ),
+          demographics: this.api.getDemographics(fromUtc, toUtc).pipe(
+            catchError(() => of(null))
+          )
+        }).pipe(
+          takeUntil(this.destroy$)
+        ).subscribe({
+          next: (phase2Results) => {
+            if (phase2Results.occupancy) {
+              this.processOccupancyData(phase2Results.occupancy);
+            } else {
+              this.occupancyChartData = [];
+            }
+            this.loadingOccupancy = false;
+            
+            if (phase2Results.demographics) {
+              this.processDemographicsData(phase2Results.demographics);
+              this.processDemographicsAnalysisData(phase2Results.demographics);
+            } else {
+              this.demographicsChartData = [];
+              this.demographicsAnalysisChartData = [];
+            }
+            this.loadingDemographics = false;
+            this.checkAllLoaded();
+            this.cdr.markForCheck();
+          },
+          error: () => {
+            this.loadingOccupancy = false;
+            this.loadingDemographics = false;
+            this.checkAllLoaded();
+            this.cdr.markForCheck();
+          }
+        });
+        this.httpSubscriptions.push(phase2Sub);
       }
     });
     
-    this.httpSubscriptions.push(allRequestsSub);
+    this.httpSubscriptions.push(phase1Sub);
   }
   
   private checkAllLoaded(): void {
@@ -569,6 +630,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // Debounce live occupancy updates to prevent excessive re-renders
     // Note: Event name is 'live_occupancy' (underscore), not 'live-occupancy' (hyphen)
     const liveOccupancySub = this.socket.listen('live_occupancy').pipe(
+      takeUntil(this.destroy$),
       debounceTime(200), // Increased debounce to reduce re-renders
       distinctUntilChanged()
     ).subscribe({
@@ -626,7 +688,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
     this.socketSubscriptions.push(liveOccupancySub);
 
-    const alertSub = this.socket.listen('alert').subscribe({
+    const alertSub = this.socket.listen('alert').pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
       next: (alertData: any) => {
         this.handleAlert(alertData);
       },

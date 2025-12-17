@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { ApiService } from '../../core/services/api.service';
 import { SiteService } from '../../core/services/site.service';
-import { Subscription } from 'rxjs';
+import { Subscription, Subject, takeUntil } from 'rxjs';
 
 @Component({
   standalone: true,
@@ -23,6 +23,7 @@ export class EntriesComponent implements OnInit, OnDestroy {
   pageNumbers: (number | string)[] = []; // Expose as property to avoid method calls in template (can include '...' for ellipsis)
   private subscription?: Subscription;
   private siteChangeSubscription?: Subscription;
+  private destroy$ = new Subject<void>();
   // Cache for computed values
   private _pageNumbersCacheKey?: string;
   private dateTimeCache = new Map<string, string>();
@@ -37,7 +38,9 @@ export class EntriesComponent implements OnInit, OnDestroy {
     this.loadEntries();
     
     // Listen for site changes and reload entries immediately
-    this.siteChangeSubscription = this.siteService.siteChange$.subscribe(() => {
+    this.siteChangeSubscription = this.siteService.siteChange$.pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
       // Immediately show loading state
       this.loading = true;
       this.currentPage = 1; // Reset to first page when site changes
@@ -48,6 +51,10 @@ export class EntriesComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    // Signal all subscriptions to complete
+    this.destroy$.next();
+    this.destroy$.complete();
+    
     if (this.subscription) {
       this.subscription.unsubscribe();
     }
@@ -58,15 +65,15 @@ export class EntriesComponent implements OnInit, OnDestroy {
   }
 
   loadEntries(): void {
-    // Unsubscribe from any pending requests to prevent race conditions
-    if (this.subscription && !this.subscription.closed) {
-      this.subscription.unsubscribe();
-    }
+    // Don't unsubscribe from in-flight requests - let them complete naturally
+    // Only track new subscriptions to clean up on destroy
     
     this.loading = true;
     this.cdr.markForCheck();
     
-    this.subscription = this.api.getEntryExit(this.currentPage, this.pageSize).subscribe({
+    this.subscription = this.api.getEntryExit(this.currentPage, this.pageSize).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
       next: (res) => {
         this.records = res.records || res.data || [];
         this.totalRecords = res.totalRecords || res.total || this.records.length;

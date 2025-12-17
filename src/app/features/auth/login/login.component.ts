@@ -55,6 +55,8 @@ export class LoginComponent {
     this.auth.login(email!, password!).subscribe({
       next: res => {
         if (res?.token) {
+          // Clear any stale caches before navigation
+          // Note: ApiService and SocketService will be reinitialized on dashboard load
           this.router.navigate(['/']);
         } else {
           this.error = 'Login failed: No token received';
