@@ -22,6 +22,7 @@
   height: 100vh;
   z-index: 10;
   overflow: hidden;
+  transition: width 0.3s ease-in-out;
   
   // Geometric pattern overlay
   &::before {
@@ -41,19 +42,29 @@
     pointer-events: none;
     z-index: 0;
   }
+
+  &.collapsed {
+    width: 80px;
+  }
 }
 
 .logo-container {
   height: 70px;
   display: flex;
   align-items: center;
-  justify-content: center; // Center the logo since text is removed
+  justify-content: space-between; // Space between logo and hamburger button
   padding: 0 24px;
   font-size: 1.25rem;
   font-weight: 700;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   position: relative;
   z-index: 1;
+  transition: padding 0.3s ease-in-out;
+}
+
+.sidebar.collapsed .logo-container {
+  padding: 0 12px;
+  justify-content: center;
 }
 
 .logo-image {
@@ -62,6 +73,12 @@
   max-width: 275px; // Increased by ~25% from 220px
   object-fit: contain;
   filter: brightness(0) invert(1); // Make logo white for dark sidebar
+  transition: opacity 0.3s ease-in-out, max-width 0.3s ease-in-out, height 0.3s ease-in-out;
+}
+
+.sidebar.collapsed .logo-image {
+  max-width: 50px;
+  height: 40px;
 }
 
 .nav-menu {
@@ -81,6 +98,12 @@
   transition: all 0.3s;
   border-left: 4px solid transparent;
   font-weight: 500;
+  position: relative;
+}
+
+.sidebar.collapsed .nav-item {
+  padding: 14px;
+  justify-content: center;
 }
 
 .nav-item:hover {
@@ -99,6 +122,24 @@
   margin-right: 10px;
   font-size: 20px;
   height: 20px;
+  flex-shrink: 0;
+  transition: margin 0.3s ease-in-out;
+}
+
+.sidebar.collapsed .nav-icon {
+  margin-right: 0;
+}
+
+.nav-text {
+  transition: opacity 0.3s ease-in-out;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar.collapsed .nav-text {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
 }
 
 .logout-btn {
@@ -109,11 +150,16 @@
   align-items: center;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   cursor: pointer;
-  transition: color 0.3s;
+  transition: all 0.3s;
   position: relative;
   z-index: 1;
   margin-top: auto;
   flex-shrink: 0;
+}
+
+.sidebar.collapsed .logout-btn {
+  padding: 20px;
+  justify-content: center;
 }
 
 .logout-btn:hover {
@@ -125,6 +171,24 @@
   margin-right: 10px;
   font-size: 20px;
   height: 20px;
+  flex-shrink: 0;
+  transition: margin 0.3s ease-in-out;
+}
+
+.sidebar.collapsed .logout-icon {
+  margin-right: 0;
+}
+
+.logout-text {
+  transition: opacity 0.3s ease-in-out;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar.collapsed .logout-text {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
 }
 
 /* --- MAIN CONTENT --- */
@@ -137,6 +201,13 @@
   max-width: calc(100% - 260px);
   box-sizing: border-box;
   overflow-x: hidden; // Prevent horizontal scrolling
+  transition: margin-left 0.3s ease-in-out, width 0.3s ease-in-out, max-width 0.3s ease-in-out;
+
+  &.full-width {
+    margin-left: 80px; // Keep 80px for collapsed sidebar
+    width: calc(100% - 80px);
+    max-width: calc(100% - 80px);
+  }
 }
 
 /* --- HEADER --- */
@@ -157,6 +228,40 @@
   display: flex;
   align-items: center;
   gap: 15px;
+}
+
+.hamburger-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+  color: white;
+  margin-left: auto; // Push to the right side
+  flex-shrink: 0;
+  
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  &:active {
+    background-color: rgba(255, 255, 255, 0.15);
+  }
+}
+
+.sidebar.collapsed .hamburger-btn {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.hamburger-icon {
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
 }
 
 .page-title {

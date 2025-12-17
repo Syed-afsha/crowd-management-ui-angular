@@ -1,8 +1,11 @@
 <div class="layout">
   <!-- SIDEBAR -->
-  <aside class="sidebar">
+  <aside class="sidebar" [class.collapsed]="sidebarCollapsed">
     <div class="logo-container">
       <img src="/assets/kloudspot-logo.svg" alt="Kloudspot" class="logo-image" />
+      <button class="hamburger-btn" (click)="toggleSidebar()" aria-label="Toggle sidebar">
+        <mat-icon class="hamburger-icon">menu</mat-icon>
+      </button>
     </div>
 
     <nav class="nav-menu">
@@ -13,23 +16,23 @@
         class="nav-item"
       >
         <mat-icon class="nav-icon">home</mat-icon>
-        <span>{{ getTranslation('overview') }}</span>
+        <span class="nav-text">{{ getTranslation('overview') }}</span>
       </a>
 
       <a routerLink="/entries" routerLinkActive="active" class="nav-item">
         <mat-icon class="nav-icon">unfold_more</mat-icon>
-        <span>{{ getTranslation('crowdEntries') }}</span>
+        <span class="nav-text">{{ getTranslation('crowdEntries') }}</span>
       </a>
     </nav>
 
     <a class="logout-btn" (click)="logout()">
       <mat-icon class="logout-icon">power_settings_new</mat-icon>
-      <span>{{ getTranslation('logout') }}</span>
+      <span class="logout-text">{{ getTranslation('logout') }}</span>
     </a>
   </aside>
 
   <!-- MAIN CONTENT AREA -->
-  <div class="main-wrapper">
+  <div class="main-wrapper" [class.full-width]="sidebarCollapsed">
     <!-- HEADER -->
     <header class="header">
       <div class="header-left">
