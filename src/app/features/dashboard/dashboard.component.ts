@@ -12,7 +12,7 @@ import { SiteService } from '../../core/services/site.service';
 import { NotificationService, Alert } from '../../core/services/notification.service';
 import { AuthService } from '../../core/services/auth.service';
 import { NgxChartsModule } from '@swimlane/ngx-charts';
-import { Subscription, forkJoin, debounceTime, distinctUntilChanged, catchError, of, Subject, takeUntil } from 'rxjs';
+import { Subscription, forkJoin, debounceTime, distinctUntilChanged, catchError, of } from 'rxjs';
 import { curveCardinal } from 'd3-shape';
 
 @Component({
@@ -78,7 +78,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private socketSubscriptions: Subscription[] = [];
   private httpSubscriptions: Subscription[] = [];
   private footfallRefreshPending = false;
-  private destroy$ = new Subject<void>();
 
   constructor(
     private api: ApiService, 
@@ -97,30 +96,33 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // This prevents loading with invalid/stale siteId from previous session
     let hasLoadedInitialData = false;
     
-    // Single subscription to handle both initial load and subsequent site changes
-    const siteChangeSub = this.siteService.siteChange$.pipe(
-      takeUntil(this.destroy$)
-    ).subscribe(() => {
+    const initialSiteSub = this.siteService.siteChange$.subscribe(() => {
+      // Only load once on initial site change (after login/sites loaded)
       if (!hasLoadedInitialData) {
-        // Initial load - no need to clear caches as this is fresh data
         hasLoadedInitialData = true;
         this.loadDashboardData();
-      } else {
-        // Subsequent site changes - clear caches for fresh data
+        // Unsubscribe after first load to avoid duplicate loads
+        initialSiteSub.unsubscribe();
+      }
+    });
+    this.httpSubscriptions.push(initialSiteSub);
+    
+    this.setupSocketListeners();
+    
+    // Listen for subsequent site changes and reload data
+    const siteChangeSub = this.siteService.siteChange$.subscribe(() => {
+      // Skip if this is the initial load (handled above)
+      if (hasLoadedInitialData) {
+        // Clear API service caches for fresh data
         this.api.clearCaches();
+        // Reload data (cache is already cleared by SiteService)
         this.loadDashboardData();
       }
     });
     this.httpSubscriptions.push(siteChangeSub);
-    
-    this.setupSocketListeners();
   }
 
   ngOnDestroy(): void {
-    // Signal all subscriptions to complete
-    this.destroy$.next();
-    this.destroy$.complete();
-    
     this.socketSubscriptions.forEach(sub => sub.unsubscribe());
     this.socketSubscriptions = [];
     this.httpSubscriptions.forEach(sub => sub.unsubscribe());
@@ -128,8 +130,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private loadDashboardData(): void {
-    // Don't unsubscribe from in-flight requests - let them complete naturally
-    // Only track new subscriptions to clean up on destroy
+    // Unsubscribe from any pending HTTP requests to prevent race conditions
+    this.httpSubscriptions.forEach(sub => {
+      if (sub && !sub.closed) {
+        sub.unsubscribe();
+      }
+    });
     this.httpSubscriptions = [];
     
     // OPTIMIZATION: Don't reset data immediately - keep existing data visible while loading
@@ -205,12 +211,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
           return of(null);
         })
       )
-    }).pipe(
-      takeUntil(this.destroy$)
-    ).subscribe({
+    }).subscribe({
       next: (phase1Results) => {
         // Process footfall
-        // API response structure: { siteId, footfall, previousFootfall, ... }
         if (phase1Results.footfall) {
           const footfallValue = phase1Results.footfall?.footfall ?? phase1Results.footfall?.count ?? phase1Results.footfall?.todaysFootfall ?? phase1Results.footfall?.totalFootfall ?? 0;
           this.todaysFootfall = typeof footfallValue === 'number' ? Math.round(footfallValue) : parseInt(footfallValue) || 0;
@@ -220,7 +223,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.loadingFootfall = false;
         
         // Process dwell
-        // API response structure: { siteId, avgDwellMinutes, previousAvgDwellMinutes, ... }
         if (phase1Results.dwell) {
           const dwellValue = phase1Results.dwell?.avgDwellMinutes ?? phase1Results.dwell?.avgDwellTime ?? phase1Results.dwell?.averageDwellTime ?? phase1Results.dwell?.dwellMinutes ?? 0;
           this.avgDwellTime = typeof dwellValue === 'number' ? Math.round(dwellValue * 10) / 10 : parseFloat(dwellValue) || 0;
@@ -279,21 +281,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
               return of(null);
             })
           )
-        }).pipe(
-          takeUntil(this.destroy$)
-        ).subscribe({
+        }).subscribe({
           next: (phase2Results) => {
             // Process occupancy
-            // API response structure: { siteId, fromUtc, toUtc, timezone, buckets: [...] }
             if (phase2Results.occupancy) {
               this.processOccupancyData(phase2Results.occupancy);
               // Set initial live occupancy from the most recent bucket only if selected date is today
               if (this.isSelectedDateToday()) {
-                // Check for buckets array in API response
                 if (phase2Results.occupancy.buckets && Array.isArray(phase2Results.occupancy.buckets) && phase2Results.occupancy.buckets.length > 0) {
                   const latestBucket = phase2Results.occupancy.buckets[phase2Results.occupancy.buckets.length - 1];
-                  // API response: buckets have avg, occupancy, count, value, average fields
-                  const latestOccupancy = Number(latestBucket.avg || latestBucket.occupancy || latestBucket.count || latestBucket.value || latestBucket.average || 0);
+                  const latestOccupancy = Number(latestBucket.avg || latestBucket.occupancy || latestBucket.value || 0);
                   if (latestOccupancy > 0) {
                     this.liveOccupancy = Math.round(latestOccupancy);
                   }
@@ -362,15 +359,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
         
         // Even if Phase 1 fails, try Phase 2 (charts) in background
         const phase2Sub = forkJoin({
-          occupancy: this.api.getOccupancy(fromUtc, toUtc).pipe(
-            catchError(() => of(null))
-          ),
-          demographics: this.api.getDemographics(fromUtc, toUtc).pipe(
-            catchError(() => of(null))
-          )
-        }).pipe(
-          takeUntil(this.destroy$)
-        ).subscribe({
+          occupancy: this.api.getOccupancy(fromUtc, toUtc).pipe(catchError(() => of(null))),
+          demographics: this.api.getDemographics(fromUtc, toUtc).pipe(catchError(() => of(null)))
+        }).subscribe({
           next: (phase2Results) => {
             if (phase2Results.occupancy) {
               this.processOccupancyData(phase2Results.occupancy);
@@ -424,33 +415,20 @@ export class DashboardComponent implements OnInit, OnDestroy {
       const result: any[] = new Array(sampledItems.length);
       let resultIndex = 0;
       for (const item of sampledItems) {
-        // Handle time extraction from local field (format: "17/12/2025 06:00:00")
+        // Handle different time field names: utc, local, timestamp, hour, time
         let time = '';
         if (item.local) {
-          // Extract time from local string (e.g., "17/12/2025 06:00:00" -> "06:00")
-          // Match pattern: DD/MM/YYYY HH:MM:SS -> extract HH:MM
-          const localMatch = item.local.match(/\d{2}\/\d{2}\/\d{4}\s+(\d{2}:\d{2}):\d{2}/);
+          // Extract time from local string (e.g., "15/12/2025 09:00:00" -> "09:00")
+          const localMatch = item.local.match(/(\d{2}:\d{2}):\d{2}/);
           if (localMatch) {
             time = localMatch[1];
           } else {
-            // Fallback: try simpler pattern
-            const simpleMatch = item.local.match(/(\d{2}:\d{2}):\d{2}/);
-            if (simpleMatch) {
-              time = simpleMatch[1];
-            } else {
-              time = this.formatTime(item.local);
-            }
+            time = this.formatTime(item.local);
           }
-        } else if (item.utc) {
-          // Use UTC timestamp if local is not available
-          time = this.formatTime(item.utc);
         } else {
-          // Fallback to other time fields
-          time = this.formatTime(item.timestamp || item.hour || item.time);
+          time = this.formatTime(item.utc || item.timestamp || item.hour || item.time);
         }
         if (time) {
-          // API response structure: buckets have occupancy value
-          // Check for avg, occupancy, count, value, average fields
           const value = Number(item.avg || item.occupancy || item.count || item.value || item.average || 0);
           // Round occupancy to whole number (can't have fractional people)
           result[resultIndex++] = { name: time, value: isNaN(value) ? 0 : Math.round(value) };
@@ -461,22 +439,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
       return result;
     };
 
-    // API response structure: { siteId, fromUtc, toUtc, timezone, buckets: [...] }
-    // Check for buckets array first (primary structure)
-    if (data?.buckets && Array.isArray(data.buckets)) {
-      this.occupancyChartData = [{ name: 'Occupancy', series: processSeries(data.buckets) }];
-      this.cdr.markForCheck();
-      return;
-    }
-    
-    // Fallback: handle if data is directly an array
     if (Array.isArray(data)) {
       this.occupancyChartData = [{ name: 'Occupancy', series: processSeries(data) }];
       this.cdr.markForCheck();
       return;
     }
     
-    // Fallback: check for other possible structures
     if (data?.timeseries && Array.isArray(data.timeseries)) {
       this.occupancyChartData = [{ name: 'Occupancy', series: processSeries(data.timeseries) }];
       this.cdr.markForCheck();
@@ -485,6 +453,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
     
     if (data?.data && Array.isArray(data.data)) {
       this.occupancyChartData = [{ name: 'Occupancy', series: processSeries(data.data) }];
+      this.cdr.markForCheck();
+      return;
+    }
+    
+    if (data?.buckets && Array.isArray(data.buckets)) {
+      this.occupancyChartData = [{ name: 'Occupancy', series: processSeries(data.buckets) }];
       this.cdr.markForCheck();
       return;
     }
@@ -507,33 +481,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
       let index = 0;
 
       for (const item of sampledItems) {
-        // Handle time extraction from local field (format: "17/12/2025 06:00:00")
+        // Handle different time field names: utc, local, timestamp, hour, time
         let time = '';
         if (item.local) {
-          // Extract time from local string (e.g., "17/12/2025 06:00:00" -> "06:00")
-          // Match pattern: DD/MM/YYYY HH:MM:SS -> extract HH:MM
-          const localMatch = item.local.match(/\d{2}\/\d{2}\/\d{4}\s+(\d{2}:\d{2}):\d{2}/);
+          // Extract time from local string (e.g., "15/12/2025 09:00:00" -> "09:00")
+          const localMatch = item.local.match(/(\d{2}:\d{2}):\d{2}/);
           if (localMatch) {
             time = localMatch[1];
           } else {
-            // Fallback: try simpler pattern
-            const simpleMatch = item.local.match(/(\d{2}:\d{2}):\d{2}/);
-            if (simpleMatch) {
-              time = simpleMatch[1];
-            } else {
-              time = this.formatTime(item.local);
-            }
+            time = this.formatTime(item.local);
           }
-        } else if (item.utc) {
-          // Use UTC timestamp if local is not available
-          time = this.formatTime(item.utc);
         } else {
-          // Fallback to other time fields
-          time = this.formatTime(item.timestamp || item.hour || item.time);
+          time = this.formatTime(item.utc || item.timestamp || item.hour || item.time);
         }
         
         if (time) {
-          // API returns male and female as numbers (could be percentages or counts)
           const maleValue = Number(item.male || item.maleCount || 0);
           const femaleValue = Number(item.female || item.femaleCount || 0);
           // Round to whole numbers (can't have fractional people)
@@ -551,22 +513,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
       ];
     };
 
-    // API response structure: { siteId, fromUtc, toUtc, timezone, buckets: [...] }
-    // Check for buckets array first (primary structure)
-    if (data?.buckets && Array.isArray(data.buckets)) {
-      this.demographicsChartData = processSeries(data.buckets);
-      this.cdr.markForCheck();
-      return;
-    }
-    
-    // Fallback: handle if data is directly an array
     if (Array.isArray(data)) {
       this.demographicsChartData = processSeries(data);
       this.cdr.markForCheck();
       return;
     }
     
-    // Fallback: check for other possible structures
     if (data?.timeseries && Array.isArray(data.timeseries)) {
       this.demographicsChartData = processSeries(data.timeseries);
       this.cdr.markForCheck();
@@ -578,30 +530,32 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
       return;
     }
+    
+    if (data?.buckets && Array.isArray(data.buckets)) {
+      this.demographicsChartData = processSeries(data.buckets);
+      this.cdr.markForCheck();
+      return;
+    }
   }
 
   private processDemographicsAnalysisData(data: any): void {
     let buckets: any[] = [];
     
-    // API response structure: { siteId, fromUtc, toUtc, timezone, buckets: [...] }
-    // Check for buckets array first (primary structure)
-    if (data?.buckets && Array.isArray(data.buckets)) {
-      buckets = data.buckets;
-    } else if (Array.isArray(data)) {
-      // Fallback: if data is directly an array
+    if (Array.isArray(data)) {
       buckets = data;
+    } else if (data?.buckets && Array.isArray(data.buckets)) {
+      buckets = data.buckets;
     } else if (data?.timeseries && Array.isArray(data.timeseries)) {
       buckets = data.timeseries;
     } else if (data?.data && Array.isArray(data.data)) {
       buckets = data.data;
     }
 
-    // Calculate total male and female counts from all buckets
+    // Calculate total male and female counts
     let totalMale = 0;
     let totalFemale = 0;
 
     buckets.forEach((item: any) => {
-      // API returns male and female as numbers (could be percentages or counts)
       const maleValue = Number(item.male || item.maleCount || 0);
       const femaleValue = Number(item.female || item.femaleCount || 0);
       if (!isNaN(maleValue)) totalMale += maleValue;
@@ -652,7 +606,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         return '';
       }
       
-      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     } catch (err) {
       console.error('❌ Dashboard: Error formatting time:', {
         error: err,
@@ -672,7 +626,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // Debounce live occupancy updates to prevent excessive re-renders
     // Note: Event name is 'live_occupancy' (underscore), not 'live-occupancy' (hyphen)
     const liveOccupancySub = this.socket.listen('live_occupancy').pipe(
-      takeUntil(this.destroy$),
       debounceTime(200), // Increased debounce to reduce re-renders
       distinctUntilChanged()
     ).subscribe({
@@ -730,9 +683,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
     this.socketSubscriptions.push(liveOccupancySub);
 
-    const alertSub = this.socket.listen('alert').pipe(
-      takeUntil(this.destroy$)
-    ).subscribe({
+    const alertSub = this.socket.listen('alert').subscribe({
       next: (alertData: any) => {
         this.handleAlert(alertData);
       },
@@ -759,27 +710,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
     
     // Use zone name if available, otherwise zone ID, otherwise fallback
     const zone = alertData.zoneName || alertData.zone || alertData.zoneId || 'Unknown Zone';
-    // Extract siteId from alert data (preferred for filtering)
-    const alertSiteId = alertData.siteId || alertData.site?.siteId || null;
     // Use site name if available, otherwise site ID, otherwise fallback
-    const site = alertData.siteName || alertData.site?.name || alertData.site || alertData.siteId || 'Unknown Site';
+    const site = alertData.siteName || alertData.site || alertData.siteId || 'Unknown Site';
     // Use person name if available
     const personName = alertData.personName || alertData.name || '';
     const severity = alertData.severity || alertData.level || 'info';
     const timestamp = alertData.ts || alertData.timestamp || Date.now();
-
-    // Get current siteId to filter alerts
-    const currentSiteId = this.auth.getSiteId();
-    
-    // Only process alerts for the currently selected site
-    if (currentSiteId && alertSiteId && alertSiteId !== currentSiteId) {
-      // Alert is for a different site, ignore it
-      return;
-    }
-    
-    // If alert doesn't have siteId but we have a current site, try to match by site name
-    // Note: Dashboard component doesn't have access to sites list, so we'll rely on siteId matching
-    // The layout component will handle the main filtering
 
     // Determine if it's entry or exit from direction field (e.g., "zone-exit", "zone-entry")
     const directionLower = direction.toString().toLowerCase();
@@ -822,7 +758,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
       actionType: normalizedActionType,
       zone,
       site,
-      siteId: alertSiteId || currentSiteId || undefined, // Store siteId for filtering
       severity,
       timestamp,
       message: message,
@@ -840,21 +775,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
 
     // Debounce footfall refresh to prevent excessive API calls
-    // Only refresh if we're viewing today's data (alerts are real-time)
-    if ((actionType === 'entry' || actionType === 'exit') && this.isSelectedDateToday()) {
+    if (actionType === 'entry' || actionType === 'exit') {
       if (!this.footfallRefreshPending) {
         this.footfallRefreshPending = true;
         setTimeout(() => {
-          // Calculate today's date range for fresh footfall data
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const todayStart = today.getTime();
-          const todayEnd = Math.min(Date.now(), today.getTime() + 24 * 60 * 60 * 1000 - 1);
-          
-          // Use date-based API call to bypass cache and get fresh data
-          const footfallRefreshSub = this.api.getFootfall(todayStart, todayEnd).subscribe({
+          const footfallRefreshSub = this.api.getFootfall().subscribe({
             next: (res) => {
-              // API response structure: { siteId, footfall, previousFootfall, ... }
               const footfallValue = res.footfall ?? res.count ?? res.todaysFootfall ?? res.totalFootfall ?? 0;
               this.todaysFootfall = typeof footfallValue === 'number' ? Math.round(footfallValue) : parseInt(footfallValue) || 0;
               this.previousFootfall = res.previousFootfall ?? res.previousCount ?? res.yesterdaysFootfall ?? 0;
@@ -875,7 +801,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
               };
               console.error('❌ Dashboard: Error refreshing footfall after alert:', errorInfo);
               this.footfallRefreshPending = false;
-              this.cdr.markForCheck();
             }
           });
           this.httpSubscriptions.push(footfallRefreshSub);
@@ -972,8 +897,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.liveOccupancy = 0;
       // Update notification service with selected date
       this.notificationService.setSelectedDate(date);
-      // Clear caches when date changes to ensure fresh data for the new date
-      this.api.clearCaches();
       this.loadDashboardData();
       this.cdr.markForCheck();
     }

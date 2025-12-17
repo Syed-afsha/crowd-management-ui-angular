@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { ApiService } from '../../core/services/api.service';
 import { SiteService } from '../../core/services/site.service';
-import { Subscription, Subject, takeUntil } from 'rxjs';
+import { Subscription } from 'rxjs';
 
 @Component({
   standalone: true,
@@ -23,7 +23,6 @@ export class EntriesComponent implements OnInit, OnDestroy {
   pageNumbers: (number | string)[] = []; // Expose as property to avoid method calls in template (can include '...' for ellipsis)
   private subscription?: Subscription;
   private siteChangeSubscription?: Subscription;
-  private destroy$ = new Subject<void>();
   // Cache for computed values
   private _pageNumbersCacheKey?: string;
   private dateTimeCache = new Map<string, string>();
@@ -35,50 +34,31 @@ export class EntriesComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // Wait for SiteService notification to ensure siteId is validated
-    // This prevents loading with invalid/stale siteId from previous session
-    let hasLoadedInitialData = false;
+    this.loadEntries();
     
-    // Single subscription to handle both initial load and subsequent site changes
-    this.siteChangeSubscription = this.siteService.siteChange$.pipe(
-      takeUntil(this.destroy$)
-    ).subscribe(() => {
-      if (!hasLoadedInitialData) {
-        // Initial load - no need to reset page
-        hasLoadedInitialData = true;
-        this.loadEntries();
-      } else {
-        // Subsequent site changes - reset to first page and reload
-        this.loading = true;
-        this.currentPage = 1;
-        this.cdr.markForCheck();
-        // Clear API service caches for fresh data
-        this.api.clearCaches();
-        // Reset page numbers
-        this.updatePageNumbers();
-        this.loadEntries();
-      }
+    // Listen for site changes and reload entries immediately
+    this.siteChangeSubscription = this.siteService.siteChange$.subscribe(() => {
+      // Immediately show loading state
+      this.loading = true;
+      this.currentPage = 1; // Reset to first page when site changes
+      this.cdr.markForCheck();
+      // Reload entries (cache is already cleared by SiteService)
+      this.loadEntries();
     });
   }
 
   ngOnDestroy(): void {
-    // Signal all subscriptions to complete
-    this.destroy$.next();
-    this.destroy$.complete();
-    
-    // Subscriptions are automatically cleaned up by takeUntil, but unsubscribe manually as backup
-    if (this.subscription && !this.subscription.closed) {
+    if (this.subscription) {
       this.subscription.unsubscribe();
     }
-    if (this.siteChangeSubscription && !this.siteChangeSubscription.closed) {
+    if (this.siteChangeSubscription) {
       this.siteChangeSubscription.unsubscribe();
     }
     this.dateTimeCache.clear();
   }
 
   loadEntries(): void {
-    // Unsubscribe from previous subscription if it exists and is still active
-    // This prevents multiple concurrent requests when buttons are clicked rapidly
+    // Unsubscribe from any pending requests to prevent race conditions
     if (this.subscription && !this.subscription.closed) {
       this.subscription.unsubscribe();
     }
@@ -86,12 +66,8 @@ export class EntriesComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.cdr.markForCheck();
     
-    this.subscription = this.api.getEntryExit(this.currentPage, this.pageSize).pipe(
-      takeUntil(this.destroy$)
-    ).subscribe({
+    this.subscription = this.api.getEntryExit(this.currentPage, this.pageSize).subscribe({
       next: (res) => {
-        // API response structure: { records: [...], totalRecords: number, pageNumber: number, pageSize: number }
-        // Fallback: also check for data array and total field
         this.records = res.records || res.data || [];
         this.totalRecords = res.totalRecords || res.total || this.records.length;
         this.totalPages = Math.ceil(this.totalRecords / this.pageSize);
@@ -125,7 +101,6 @@ export class EntriesComponent implements OnInit, OnDestroy {
     if (page >= 1 && page <= this.totalPages) {
       this.currentPage = page;
       this.updatePageNumbers();
-      this.cdr.markForCheck(); // Trigger change detection for button states
       this.loadEntries();
     }
   }
@@ -134,7 +109,6 @@ export class EntriesComponent implements OnInit, OnDestroy {
     if (this.currentPage > 1) {
       this.currentPage--;
       this.updatePageNumbers();
-      this.cdr.markForCheck(); // Trigger change detection for button states
       this.loadEntries();
     }
   }
@@ -143,7 +117,6 @@ export class EntriesComponent implements OnInit, OnDestroy {
     if (this.currentPage < this.totalPages) {
       this.currentPage++;
       this.updatePageNumbers();
-      this.cdr.markForCheck(); // Trigger change detection for button states
       this.loadEntries();
     }
   }
@@ -211,11 +184,11 @@ export class EntriesComponent implements OnInit, OnDestroy {
         this.dateTimeCache.set(cacheKey, result);
         return result;
       }
-      // Format as "11:05" (24-hour format)
+      // Format as "11:05 AM" to match design
       const result = date.toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
-        hour12: false
+        hour12: true
       });
       this.dateTimeCache.set(cacheKey, result);
       return result;
