@@ -66,7 +66,7 @@
     </div>
     <div class="chart-container-wrapper">
       <ngx-charts-area-chart
-      *ngIf="occupancyChartData.length > 0"
+      *ngIf="occupancyChartData.length > 0 && !loadingOccupancy"
       [view]="chartOptions.view"
       [scheme]="'vivid'"
       [results]="occupancyChartData"
@@ -83,14 +83,14 @@
       [timeline]="chartOptions.timeline"
       [animations]="chartOptions.animations">
       </ngx-charts-area-chart>
-      <div class="live-marker" *ngIf="occupancyChartData.length > 0 && !loading">
+      <div class="live-marker" *ngIf="occupancyChartData.length > 0 && !loadingOccupancy">
         <div class="live-marker-badge">
           <mat-icon class="live-icon">fiber_manual_record</mat-icon>
           <span>LIVE</span>
         </div>
       </div>
-      <div *ngIf="occupancyChartData.length === 0 && !loading" class="no-data">No occupancy data available</div>
-      <div *ngIf="loading" class="skeleton-chart"></div>
+      <div *ngIf="occupancyChartData.length === 0 && !loadingOccupancy" class="no-data">No occupancy data available</div>
+      <div *ngIf="loadingOccupancy" class="skeleton-chart"></div>
     </div>
   </div>
 
@@ -100,7 +100,7 @@
       <div class="stat-title">Chart of Demographics</div>
       <div class="donut-container">
         <ngx-charts-pie-chart
-          *ngIf="demographicsAnalysisChartData.length > 0"
+          *ngIf="demographicsAnalysisChartData.length > 0 && !loadingDemographics"
           [view]="pieChartOptions.view"
           [scheme]="'vivid'"
           [results]="demographicsAnalysisChartData"
@@ -109,14 +109,14 @@
           [doughnut]="true"
           [animations]="pieChartOptions.animations">
         </ngx-charts-pie-chart>
-        <div *ngIf="demographicsAnalysisChartData.length > 0 && !loading" class="donut-center-text">
+        <div *ngIf="demographicsAnalysisChartData.length > 0 && !loadingDemographics" class="donut-center-text">
           <div class="donut-center-value">{{ getTotalCrowdPercentage() }}%</div>
           <div class="donut-center-label">Total Crowd</div>
         </div>
-        <div *ngIf="demographicsAnalysisChartData.length === 0 && !loading" class="no-data-small">No data</div>
-        <div *ngIf="loading" class="skeleton-donut"></div>
+        <div *ngIf="demographicsAnalysisChartData.length === 0 && !loadingDemographics" class="no-data-small">No data</div>
+        <div *ngIf="loadingDemographics" class="skeleton-donut"></div>
       </div>
-      <div class="demographics-legend" *ngIf="!loading && demographicsAnalysisChartData.length > 0">
+      <div class="demographics-legend" *ngIf="!loadingDemographics && demographicsAnalysisChartData.length > 0">
         <div class="legend-item">
           <mat-icon class="legend-icon male">male</mat-icon>
           <span>{{ getMalePercentage() }}% Males</span>
@@ -131,7 +131,7 @@
     <div class="card">
       <div class="stat-title">Demographics Analysis</div>
       <ngx-charts-area-chart
-        *ngIf="demographicsChartData.length > 0"
+        *ngIf="demographicsChartData.length > 0 && !loadingDemographics"
         [view]="demographicsChartOptions.view"
         [scheme]="'vivid'"
         [results]="demographicsChartData"
@@ -148,8 +148,8 @@
         [timeline]="demographicsChartOptions.timeline"
         [animations]="demographicsChartOptions.animations">
       </ngx-charts-area-chart>
-      <div *ngIf="demographicsChartData.length === 0 && !loading" class="no-data">No demographics data available</div>
-      <div *ngIf="loading" class="skeleton-chart"></div>
+      <div *ngIf="demographicsChartData.length === 0 && !loadingDemographics" class="no-data">No demographics data available</div>
+      <div *ngIf="loadingDemographics" class="skeleton-chart"></div>
     </div>
   </div>
 </div>

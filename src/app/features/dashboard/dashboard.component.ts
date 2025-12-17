@@ -149,26 +149,51 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.loading = false;
     this.cdr.markForCheck();
     
-    // Calculate date range based on selected date
-    // All charts: 8:00 to 18:00 (10 hours) as per prototype
-    // Use local time for date calculation (user expects 8:00-18:00 in their timezone)
-    const selectedDateStart = new Date(this.selectedDate);
-    selectedDateStart.setHours(8, 0, 0, 0); // Start at 8:00 AM local time
-    const selectedDateEnd = new Date(this.selectedDate);
-    selectedDateEnd.setHours(18, 0, 0, 0); // End at 6:00 PM (18:00) local time
+    // Calculate date range for API
+    // API expects: { siteId, fromUtc, toUtc } where fromUtc/toUtc are UTC milliseconds (numbers)
+    // Use UTC time directly - backend handles timezone conversion based on siteId
     
-    // Check if selected date is today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const selectedDateOnly = new Date(this.selectedDate);
-    selectedDateOnly.setHours(0, 0, 0, 0);
-    const isToday = selectedDateOnly.getTime() === today.getTime();
+    // Get selected date in UTC
+    const selectedDate = new Date(this.selectedDate);
+    const selectedYear = selectedDate.getUTCFullYear();
+    const selectedMonth = selectedDate.getUTCMonth();
+    const selectedDay = selectedDate.getUTCDate();
     
-    // API expects UTC timestamps, so convert local time to UTC milliseconds
-    const fromUtc = selectedDateStart.getTime();
-    // For today, use current time (not 18:00) to avoid showing future data
-    // For past/future dates, use 18:00
-    const toUtc = isToday ? Math.min(Date.now(), selectedDateEnd.getTime()) : selectedDateEnd.getTime();
+    // Check if selected date is today (in UTC)
+    const now = new Date();
+    const todayYear = now.getUTCFullYear();
+    const todayMonth = now.getUTCMonth();
+    const todayDay = now.getUTCDate();
+    const isToday = selectedYear === todayYear && selectedMonth === todayMonth && selectedDay === todayDay;
+    
+    // Create 8:00 AM and 6:00 PM UTC for the selected date
+    // Date.UTC() creates a date in UTC timezone
+    let fromUtc = Date.UTC(selectedYear, selectedMonth, selectedDay, 8, 0, 0, 0);  // 8:00 AM UTC
+    let toUtc = isToday ? Math.min(Date.now(), Date.UTC(selectedYear, selectedMonth, selectedDay, 18, 0, 0, 0)) : Date.UTC(selectedYear, selectedMonth, selectedDay, 18, 0, 0, 0);  // 6:00 PM UTC or current time
+    
+    // Ensure valid time range
+    if (fromUtc >= toUtc) {
+      // If invalid, adjust to valid range
+      if (isToday && Date.now() < fromUtc) {
+        // Before 8 AM UTC today - use last hour
+        toUtc = Date.now();
+        fromUtc = Math.max(toUtc - (60 * 60 * 1000), fromUtc - (24 * 60 * 60 * 1000));
+      } else {
+        // Ensure minimum 1 hour range
+        toUtc = Math.max(toUtc, fromUtc + (60 * 60 * 1000));
+      }
+    }
+    
+    // Log for debugging
+    console.log('📅 API date range (UTC):', {
+      selectedDate: `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`,
+      isToday,
+      fromUtc: fromUtc,
+      toUtc: toUtc,
+      fromUtcISO: new Date(fromUtc).toISOString(),
+      toUtcISO: new Date(toUtc).toISOString(),
+      durationHours: ((toUtc - fromUtc) / (60 * 60 * 1000)).toFixed(2)
+    });
     
     // PHASE 1: High Priority - Summary Cards (Footfall & Dwell)
     // These APIs power summary cards and must load first
@@ -294,6 +319,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
                   if (latestOccupancy > 0) {
                     this.liveOccupancy = Math.round(latestOccupancy);
                   }
+                } else {
+                  // Empty buckets array - no live data
+                  this.liveOccupancy = 0;
                 }
               } else {
                 // For past or future dates, live occupancy should be 0
@@ -304,6 +332,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
               this.liveOccupancy = 0;
             }
             this.loadingOccupancy = false;
+            console.log('✅ Occupancy loading complete. Chart data length:', this.occupancyChartData.length, 'Live occupancy:', this.liveOccupancy);
             
             // Process demographics
             if (phase2Results.demographics) {
@@ -314,6 +343,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
               this.demographicsAnalysisChartData = [];
             }
             this.loadingDemographics = false;
+            console.log('✅ Demographics loading complete. Chart data length:', this.demographicsChartData.length, 'Analysis data length:', this.demographicsAnalysisChartData.length);
             
             // Phase 2 complete
             this.checkAllLoaded();
@@ -405,6 +435,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private processOccupancyData(data: any): void {
     const processSeries = (items: any[]) => {
+      if (!items || items.length === 0) {
+        return [];
+      }
+      
       // Data sampling: Take every Nth item to reduce data points for faster rendering
       // If more than 20 points, sample to keep max 20 points (ultra-optimized for 1-2 second load)
       const maxPoints = 20;
@@ -439,33 +473,35 @@ export class DashboardComponent implements OnInit, OnDestroy {
       return result;
     };
 
+    let series: any[] = [];
+    
     if (Array.isArray(data)) {
-      this.occupancyChartData = [{ name: 'Occupancy', series: processSeries(data) }];
-      this.cdr.markForCheck();
-      return;
+      series = processSeries(data);
+    } else if (data?.timeseries && Array.isArray(data.timeseries)) {
+      series = processSeries(data.timeseries);
+    } else if (data?.data && Array.isArray(data.data)) {
+      series = processSeries(data.data);
+    } else if (data?.buckets && Array.isArray(data.buckets)) {
+      series = processSeries(data.buckets);
     }
     
-    if (data?.timeseries && Array.isArray(data.timeseries)) {
-      this.occupancyChartData = [{ name: 'Occupancy', series: processSeries(data.timeseries) }];
-      this.cdr.markForCheck();
-      return;
+    // Only set chart data if series has data points
+    if (series.length > 0) {
+      this.occupancyChartData = [{ name: 'Occupancy', series }];
+      console.log('✅ Occupancy chart data loaded:', this.occupancyChartData.length, 'series with', series.length, 'points');
+    } else {
+      this.occupancyChartData = [];
+      console.warn('⚠️ Occupancy data processed but no valid series found. Data structure:', data);
     }
-    
-    if (data?.data && Array.isArray(data.data)) {
-      this.occupancyChartData = [{ name: 'Occupancy', series: processSeries(data.data) }];
-      this.cdr.markForCheck();
-      return;
-    }
-    
-    if (data?.buckets && Array.isArray(data.buckets)) {
-      this.occupancyChartData = [{ name: 'Occupancy', series: processSeries(data.buckets) }];
-      this.cdr.markForCheck();
-      return;
-    }
+    this.cdr.markForCheck();
   }
 
   private processDemographicsData(data: any): void {
     const processSeries = (items: any[]) => {
+      if (!items || items.length === 0) {
+        return [];
+      }
+      
       // Data sampling: Take every Nth item to reduce data points for faster rendering
       // If more than 20 points, sample to keep max 20 points (ultra-optimized for 1-2 second load)
       const maxPoints = 20;
@@ -513,29 +549,27 @@ export class DashboardComponent implements OnInit, OnDestroy {
       ];
     };
 
+    let chartData: any[] = [];
+    
     if (Array.isArray(data)) {
-      this.demographicsChartData = processSeries(data);
-      this.cdr.markForCheck();
-      return;
+      chartData = processSeries(data);
+    } else if (data?.timeseries && Array.isArray(data.timeseries)) {
+      chartData = processSeries(data.timeseries);
+    } else if (data?.data && Array.isArray(data.data)) {
+      chartData = processSeries(data.data);
+    } else if (data?.buckets && Array.isArray(data.buckets)) {
+      chartData = processSeries(data.buckets);
     }
     
-    if (data?.timeseries && Array.isArray(data.timeseries)) {
-      this.demographicsChartData = processSeries(data.timeseries);
-      this.cdr.markForCheck();
-      return;
+    // Only set chart data if it has valid series
+    if (chartData.length > 0 && chartData[0]?.series?.length > 0) {
+      this.demographicsChartData = chartData;
+      console.log('✅ Demographics chart data loaded:', this.demographicsChartData.length, 'series');
+    } else {
+      this.demographicsChartData = [];
+      console.warn('⚠️ Demographics data processed but no valid series found. Data structure:', data);
     }
-    
-    if (data?.data && Array.isArray(data.data)) {
-      this.demographicsChartData = processSeries(data.data);
-      this.cdr.markForCheck();
-      return;
-    }
-    
-    if (data?.buckets && Array.isArray(data.buckets)) {
-      this.demographicsChartData = processSeries(data.buckets);
-      this.cdr.markForCheck();
-      return;
-    }
+    this.cdr.markForCheck();
   }
 
   private processDemographicsAnalysisData(data: any): void {

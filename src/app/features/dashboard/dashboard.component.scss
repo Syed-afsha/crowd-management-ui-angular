@@ -245,6 +245,14 @@
   max-width: 100%;
   box-sizing: border-box;
   overflow-x: hidden; // Prevent horizontal overflow
+  min-height: 250px; // Ensure consistent height for skeleton/chart
+  
+  // Ensure charts render above skeleton
+  ngx-charts-area-chart,
+  ngx-charts-pie-chart {
+    position: relative;
+    z-index: 2;
+  }
   
   // LIVE indicator line positioned at ~85% of chart width (current time)
   &::after {
@@ -463,6 +471,11 @@
   );
   background-size: 400% 100%;
   animation: shimmer 1.4s ease infinite;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
 }
 
 .skeleton-donut {
