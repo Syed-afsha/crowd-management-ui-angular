@@ -140,7 +140,7 @@ export class EntriesComponent implements OnInit, OnDestroy {
         // Show: 1 ... second-to-last last
         pages.push('...');
         for (let i = this.totalPages - 2; i <= this.totalPages; i++) {
-          pages.push(i);
+      pages.push(i);
         }
       } else {
         // Show: 1 ... current-1 current current+1 ... last

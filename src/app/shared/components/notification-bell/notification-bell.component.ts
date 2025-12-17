@@ -27,15 +27,17 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.subscription = this.notificationService.alerts$.subscribe(alerts => {
-      this.alerts = alerts;
-      this.unreadCount = alerts.length;
+    this.subscription = this.notificationService.alerts$.subscribe(() => {
+      // Use filtered alerts based on selected date
+      this.alerts = this.notificationService.getFilteredAlerts();
+      this.unreadCount = this.notificationService.getFilteredUnreadCount();
       // Clear cache when alerts change
       this.timeCache.clear();
       this.cdr.markForCheck();
     });
-    this.alerts = this.notificationService.getAlerts();
-    this.unreadCount = this.notificationService.getUnreadCount();
+    // Initialize with filtered alerts
+    this.alerts = this.notificationService.getFilteredAlerts();
+    this.unreadCount = this.notificationService.getFilteredUnreadCount();
     this.cdr.markForCheck();
   }
 

@@ -17,6 +17,7 @@ export class NotificationService {
   private alertsSubject = new Subject<Alert[]>();
   public alerts$ = this.alertsSubject.asObservable();
   private readonly MAX_ALERTS = 50;
+  private selectedDate: Date = new Date();
 
   addAlert(alert: Alert): void {
     this.alerts.unshift(alert);
@@ -40,6 +41,35 @@ export class NotificationService {
   clearAlerts(): void {
     this.alerts = [];
     this.alertsSubject.next([]);
+  }
+
+  setSelectedDate(date: Date): void {
+    this.selectedDate = date;
+    // Re-emit alerts to trigger filtering in components
+    this.alertsSubject.next([...this.alerts]);
+  }
+
+  getSelectedDate(): Date {
+    return this.selectedDate;
+  }
+
+  getFilteredAlerts(): Alert[] {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selected = new Date(this.selectedDate);
+    selected.setHours(0, 0, 0, 0);
+    
+    // Only show notifications for today
+    if (selected.getTime() !== today.getTime()) {
+      return [];
+    }
+    
+    // For today, return all alerts
+    return this.alerts;
+  }
+
+  getFilteredUnreadCount(): number {
+    return this.getFilteredAlerts().length;
   }
 }
 

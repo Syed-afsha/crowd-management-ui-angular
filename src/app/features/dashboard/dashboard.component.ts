@@ -89,6 +89,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    // Initialize notification service with today's date
+    this.notificationService.setSelectedDate(this.selectedDate);
+    
     // Start loading data immediately if siteId exists, otherwise wait for site
     const siteId = this.auth.getSiteId();
     if (siteId) {
@@ -618,7 +621,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
       raw: alertData
     };
 
-    this.notificationService.addAlert(alert);
+    // Only add notifications if selected date is today
+    // Notifications are real-time and should only appear for today
+    if (this.isSelectedDateToday()) {
+      this.notificationService.addAlert(alert);
+    }
 
     if (severity === 'critical') {
       console.warn('⚠️ Critical alert received:', alert.message);
@@ -736,6 +743,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.selectedDate = date;
       // Reset live occupancy when date changes - will be set correctly in loadDashboardData
       this.liveOccupancy = 0;
+      // Update notification service with selected date
+      this.notificationService.setSelectedDate(date);
       this.loadDashboardData();
       this.cdr.markForCheck();
     }
