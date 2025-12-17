@@ -20,7 +20,7 @@
         <label>Log In *</label>
         <input
           type="text"
-          placeholder="Enter Username or Email"
+          placeholder="Email or Username"
           formControlName="email"
           autocomplete="username"
         />
@@ -39,7 +39,7 @@
             (click)="togglePassword($event)"
             aria-label="Toggle password visibility"
           >
-            👁
+            <mat-icon>{{ showPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
           </button>
         </div>
 

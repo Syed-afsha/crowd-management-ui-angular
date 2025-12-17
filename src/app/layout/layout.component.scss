@@ -55,11 +55,13 @@
   z-index: 1;
 }
 
-.logo-icon {
+.logo-image {
+  height: 32px;
+  width: auto;
+  max-width: 180px;
   margin-right: 10px;
-  font-size: 24px;
-  width: 24px;
-  height: 24px;
+  object-fit: contain;
+  filter: brightness(0) invert(1); // Make logo white for dark sidebar
 }
 
 .logo-text {
@@ -136,6 +138,9 @@
   display: flex;
   flex-direction: column;
   width: calc(100% - 260px);
+  max-width: calc(100% - 260px);
+  box-sizing: border-box;
+  overflow-x: hidden; // Prevent horizontal scrolling
 }
 
 /* --- HEADER --- */

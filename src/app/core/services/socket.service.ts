@@ -29,8 +29,15 @@ export class SocketService implements OnDestroy {
       this.socket.disconnect();
       this.socket = null;
     }
-    // Use empty string for same-origin, or full URL if needed
-    const socketUrl = environment.apiUrl || window.location.origin;
+    // Use environment API URL or fallback to backend API server
+    // In development, proxy handles /api routes, but socket.io needs direct connection
+    let socketUrl = environment.apiUrl;
+    if (!socketUrl || socketUrl === '') {
+      // Fallback to backend API server (matches proxy.conf.json target)
+      socketUrl = 'https://hiring-dev.internal.kloudspot.com';
+    }
+    // Remove trailing slash if present
+    socketUrl = socketUrl.replace(/\/$/, '');
     console.log('🔌 Socket.io connecting to:', socketUrl);
     this.socket = io(socketUrl, {
       transports: ['websocket', 'polling'], // Try websocket first for better performance
@@ -39,7 +46,9 @@ export class SocketService implements OnDestroy {
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      timeout: 20000, // 20 second connection timeout
+      timeout: 10000, // 10 second connection timeout (reduced for faster failure detection)
+      path: '/socket.io/', // Default socket.io path
+      withCredentials: true, // For cross-origin connections
       forceNew: false, // Reuse existing connection if available
       auth: {
         token: token

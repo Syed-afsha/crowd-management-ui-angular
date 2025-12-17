@@ -1,6 +1,6 @@
 <div class="entries">
   <div class="section-header">
-    <h2>Crowd Entries</h2>
+    <h2>Overview</h2>
     <button class="date-picker-btn">
       <mat-icon class="calendar-icon">calendar_today</mat-icon>
       <span>Today</span>
@@ -25,11 +25,7 @@
         <tr *ngFor="let r of records; trackBy: trackByRecordId">
           <td>
             <div class="user-cell">
-              <img 
-                [src]="'https://i.pravatar.cc/150?img=' + ((r.personId ? (r.personId.charCodeAt(0) % 10) + 1 : (r.personName || r.name || r.visitorName || 'N/A').charCodeAt(0) % 10) + 1)" 
-                class="table-avatar"
-                [alt]="(r.personName || r.name || r.visitorName || 'N/A')"
-                onerror="this.src='https://i.pravatar.cc/150?img=1'">
+              <div class="table-avatar">{{ (r.personName || r.name || r.visitorName || 'N/A').charAt(0).toUpperCase() }}</div>
               <span>{{ r.personName || r.name || r.visitorName || 'N/A' }}</span>
             </div>
           </td>
@@ -64,7 +60,9 @@
         *ngFor="let page of pageNumbers; trackBy: trackByPageNumber"
         class="page-btn"
         [class.active]="page === currentPage"
-        (click)="goToPage(page)">
+        [class.ellipsis]="page === '...'"
+        [disabled]="page === '...'"
+        (click)="page !== '...' && goToPage(page)">
         {{ page }}
       </button>
     </div>

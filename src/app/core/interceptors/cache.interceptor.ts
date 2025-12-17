@@ -9,7 +9,7 @@ interface CacheEntry {
 }
 
 const cache = new Map<string, CacheEntry>();
-const CACHE_TTL = 30000; // 30 seconds cache for analytics data
+const CACHE_TTL = 120000; // 2 minutes cache for analytics data (increased for instant cached loads)
 const MAX_CACHE_SIZE = 100; // Maximum number of cache entries to prevent memory leaks
 
 // Function to clear cache for a specific site or all cache

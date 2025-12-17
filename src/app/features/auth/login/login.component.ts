@@ -2,12 +2,13 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
   standalone: true,
   selector: 'app-login',
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, MatIconModule],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss']
 })
@@ -51,24 +52,18 @@ export class LoginComponent {
         }
       },
       error: (err) => {
-        console.error('Login error details:', {
-          status: err.status,
-          statusText: err.statusText,
-          url: err.url,
-          error: err.error,
-          message: err.message
-        });
-        // Show more detailed error message
+        // Security: Never log credentials, tokens, or detailed error info
+        // Show user-friendly error messages only
         if (err.status === 0) {
-          this.error = 'Network error: Cannot connect to server. Make sure the dev server is running with proxy: ng serve';
+          this.error = 'Network error: Cannot connect to server. Please check your connection.';
         } else if (err.status === 401) {
           this.error = 'Invalid credentials';
         } else if (err.status === 404) {
-          this.error = `API endpoint not found (404). URL: ${err.url || 'unknown'}. Make sure the dev server was restarted after adding proxy config.`;
+          this.error = 'API endpoint not found. Please contact support.';
         } else if (err.status >= 500) {
           this.error = 'Server error. Please try again later.';
         } else {
-          this.error = err.error?.message || err.message || `Login failed (${err.status}). Please try again.`;
+          this.error = err.error?.message || 'Login failed. Please try again.';
         }
         this.loading = false;
       }

@@ -7,9 +7,9 @@ import { AuthService } from './auth.service';
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private base = environment.apiUrl;
-  private readonly TWELVE_HOURS_MS = 6 * 60 * 60 * 1000; // Reduced to 6 hours for faster loading
-  private readonly SIX_HOURS_MS = 3 * 60 * 60 * 1000; // Reduced to 3 hours for entry-exit
-  private readonly REQUEST_TIMEOUT = 10000; // Reduced to 10 seconds for faster failure detection
+  private readonly TWELVE_HOURS_MS = 2 * 60 * 60 * 1000; // Reduced to 2 hours for ultra-fast loading (1-2 seconds target)
+  private readonly SIX_HOURS_MS = 1 * 60 * 60 * 1000; // Reduced to 1 hour for entry-exit (faster queries)
+  private readonly REQUEST_TIMEOUT = 15000; // 15 seconds timeout (balanced: allows backend processing time while still detecting failures)
   // Cache sites API response to avoid repeated calls
   private sitesCache$?: ReturnType<typeof this.createSitesCache>;
   // Request deduplication: share observables to prevent duplicate requests
@@ -82,7 +82,10 @@ export class ApiService {
         }
       }),
       catchError(err => {
-        console.error('Footfall request failed:', err);
+        // Only log non-timeout errors to reduce console noise
+        if (err.name !== 'TimeoutError') {
+          console.error('Footfall request failed:', err);
+        }
         return of(null);
       }),
       shareReplay(1)
@@ -99,7 +102,10 @@ export class ApiService {
         }
       }),
       catchError(err => {
-        console.error('Dwell request failed:', err);
+        // Only log non-timeout errors to reduce console noise
+        if (err.name !== 'TimeoutError') {
+          console.error('Dwell request failed:', err);
+        }
         return of(null);
       }),
       shareReplay(1)
@@ -114,7 +120,10 @@ export class ApiService {
         if (err.status === 404) {
           return of(null);
         }
-        console.error('Occupancy request failed:', err);
+        // Only log non-timeout errors to reduce console noise
+        if (err.name !== 'TimeoutError') {
+          console.error('Occupancy request failed:', err);
+        }
         return of(null);
       }),
       shareReplay(1)
@@ -129,7 +138,10 @@ export class ApiService {
         if (err.status === 404) {
           return of(null);
         }
-        console.error('Demographics request failed:', err);
+        // Only log non-timeout errors to reduce console noise
+        if (err.name !== 'TimeoutError') {
+          console.error('Demographics request failed:', err);
+        }
         return of(null);
       }),
       shareReplay(1)
@@ -158,7 +170,10 @@ export class ApiService {
     ).pipe(
       timeout(this.REQUEST_TIMEOUT),
       catchError(err => {
-        console.error('Entry-exit request failed:', err);
+        // Only log non-timeout errors to reduce console noise
+        if (err.name !== 'TimeoutError') {
+          console.error('Entry-exit request failed:', err);
+        }
         return of({ records: [], data: [], totalRecords: 0, total: 0 });
       }),
       shareReplay(1)

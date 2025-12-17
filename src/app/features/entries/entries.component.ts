@@ -20,7 +20,7 @@ export class EntriesComponent implements OnInit, OnDestroy {
   pageSize = 50;
   totalRecords = 0;
   totalPages = 0;
-  pageNumbers: number[] = []; // Expose as property to avoid method calls in template
+  pageNumbers: (number | string)[] = []; // Expose as property to avoid method calls in template (can include '...' for ellipsis)
   private subscription?: Subscription;
   private siteChangeSubscription?: Subscription;
   // Cache for computed values
@@ -85,7 +85,8 @@ export class EntriesComponent implements OnInit, OnDestroy {
     });
   }
 
-  goToPage(page: number): void {
+  goToPage(page: number | string): void {
+    if (typeof page !== 'number' || page < 1 || page > this.totalPages) return;
     if (page >= 1 && page <= this.totalPages) {
       this.currentPage = page;
       this.updatePageNumbers();
@@ -116,18 +117,40 @@ export class EntriesComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Calculate page numbers to show (max 5, centered around current page)
-    const pages: number[] = [];
-    const maxPages = 5;
-    let startPage = Math.max(1, this.currentPage - Math.floor(maxPages / 2));
-    let endPage = Math.min(this.totalPages, startPage + maxPages - 1);
+    // Calculate page numbers to show with ellipsis (matching Figma: "< 1 2 3 ... 5 >")
+    const pages: (number | string)[] = [];
     
-    if (endPage - startPage < maxPages - 1) {
-      startPage = Math.max(1, endPage - maxPages + 1);
-    }
-    
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i);
+    if (this.totalPages <= 7) {
+      // Show all pages if 7 or fewer
+      for (let i = 1; i <= this.totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      // Always show first page
+      pages.push(1);
+      
+      if (this.currentPage <= 3) {
+        // Show: 1 2 3 ... last
+        for (let i = 2; i <= 3; i++) {
+          pages.push(i);
+        }
+        pages.push('...');
+        pages.push(this.totalPages);
+      } else if (this.currentPage >= this.totalPages - 2) {
+        // Show: 1 ... second-to-last last
+        pages.push('...');
+        for (let i = this.totalPages - 2; i <= this.totalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        // Show: 1 ... current-1 current current+1 ... last
+        pages.push('...');
+        pages.push(this.currentPage - 1);
+        pages.push(this.currentPage);
+        pages.push(this.currentPage + 1);
+        pages.push('...');
+        pages.push(this.totalPages);
+      }
     }
     
     this.pageNumbers = pages;
@@ -183,7 +206,7 @@ export class EntriesComponent implements OnInit, OnDestroy {
     return record.personId || record.id || index.toString();
   }
 
-  trackByPageNumber(index: number, page: number): number {
+  trackByPageNumber(index: number, page: number | string): number | string {
     return page;
   }
 
