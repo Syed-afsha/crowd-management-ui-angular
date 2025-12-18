@@ -559,13 +559,7 @@ export class ApiService {
       )
     }).pipe(
       tap(results => {
-        // Log combined batch response
         // Combined response logged only for debugging - removed to reduce console noise
-        // console.log('📥 API RESPONSE: getSummaryCardsBatch (combined)', {
-          footfall: results.footfall,
-          dwell: results.dwell,
-          timestamp: new Date().toISOString()
-        });
       }),
       // OPTIMIZATION: Cache batch results for same payload
       shareReplay(1),
@@ -645,13 +639,7 @@ export class ApiService {
       )
     }).pipe(
       tap(results => {
-        // Log combined batch response
         // Combined response logged only for debugging - removed to reduce console noise
-        // console.log('📥 API RESPONSE: getChartsBatch (combined)', {
-          occupancy: results.occupancy,
-          demographics: results.demographics,
-          timestamp: new Date().toISOString()
-        });
       }),
       // OPTIMIZATION: Cache batch results for same payload
       shareReplay(1),

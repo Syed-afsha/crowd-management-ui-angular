@@ -64,9 +64,9 @@
 
       <div class="header-right">
         <div class="lang-switch">
-          <button class="lang-btn" [class.active]="currentLang === 'en'" (click)="setLanguage('en')">En</button>
+          <button class="lang-btn" [class.active]="currentLang === 'en'" (click)="toggleLanguage()">En</button>
           <span class="lang-separator">&nbsp;</span>
-          <button class="lang-btn" [class.active]="currentLang === 'ar'" (click)="setLanguage('ar')">ع</button>
+          <button class="lang-btn" [class.active]="currentLang === 'ar'" (click)="toggleLanguage()">ع</button>
         </div>
 
         <app-notification-bell></app-notification-bell>

@@ -32,28 +32,19 @@
     <div class="card">
       <div class="stat-title">Live Occupancy</div>
       <div class="stat-value" [class.loading-state]="loadingFootfall">{{ liveOccupancy }}</div>
-      <div class="stat-trend">
-        <span class="live-indicator">
-          <span class="live-dot"></span>
-          <span>Live</span>
-        </span>
+      <div *ngIf="liveOccupancyChange" class="stat-percentage-change">
+        {{ liveOccupancyChange.value.toFixed(0) }}% {{ liveOccupancyChange.isPositive ? 'More' : 'Less' }} than yesterday
       </div>
     </div>
 
     <div class="card">
-      <div class="stat-title">
-        Today's Footfall
-        <span class="stat-subtitle" *ngIf="siteTimezone">({{ siteTimezone }})</span>
-      </div>
+      <div class="stat-title">Today's Footfall</div>
       <div class="stat-value" [class.loading-state]="loadingFootfall">
         <span *ngIf="!loadingFootfall">{{ footfallDisplayValue }}</span>
         <mat-spinner *ngIf="loadingFootfall" diameter="24" class="inline-spinner"></mat-spinner>
       </div>
-      <div *ngIf="previousFootfall > 0 && !loadingFootfall" class="stat-trend" [class.trend-up]="footfallChange.isPositive" [class.trend-down]="!footfallChange.isPositive">
-        <ng-container *ngIf="footfallChange as fc">
-          <span class="trend-wavy">{{ fc.isPositive ? '↗' : '↘' }}</span>
-          <span>{{ fc.value.toFixed(0) }}% {{ fc.isPositive ? 'More' : 'Less' }} than yesterday</span>
-        </ng-container>
+      <div *ngIf="footfallChange && !loadingFootfall" class="stat-percentage-change">
+        {{ footfallChange.value.toFixed(0) }}% {{ footfallChange.isPositive ? 'More' : 'Less' }} than yesterday
       </div>
     </div>
 
@@ -63,14 +54,8 @@
         <span *ngIf="!loadingDwell">{{ dwellTimeDisplayValue }}</span>
         <mat-spinner *ngIf="loadingDwell" diameter="24" class="inline-spinner"></mat-spinner>
       </div>
-      <div class="stat-meta" *ngIf="dwellRecords > 0 && !loadingDwell">
-        Based on {{ dwellRecords | number }} records
-      </div>
-      <div *ngIf="previousDwellTime > 0 && !loadingDwell" class="stat-trend" [class.trend-up]="dwellTimeChange.isPositive" [class.trend-down]="!dwellTimeChange.isPositive">
-        <ng-container *ngIf="dwellTimeChange as dtc">
-          <span class="trend-wavy">{{ dtc.isPositive ? '↗' : '↘' }}</span>
-          <span>{{ dtc.value.toFixed(0) }}% {{ dtc.isPositive ? 'More' : 'Less' }} than yesterday</span>
-        </ng-container>
+      <div *ngIf="dwellTimeChange && !loadingDwell" class="stat-percentage-change">
+        {{ dwellTimeChange.value.toFixed(0) }}% {{ dwellTimeChange.isPositive ? 'More' : 'Less' }} than yesterday
       </div>
     </div>
   </div>
@@ -78,33 +63,38 @@
   <div class="chart-section">
     <div class="chart-header">
       <div class="stat-title">Overall Occupancy</div>
-      <div class="chart-meta" *ngIf="occupancyTimezone">
-        <span class="timezone-info">{{ occupancyTimezone }}</span>
-      </div>
     </div>
     <div class="chart-container-wrapper">
       <div *ngIf="loadingOccupancy" class="chart-loading">
         <mat-spinner diameter="40"></mat-spinner>
         <p class="chart-loading-text">Loading occupancy data...</p>
       </div>
-      <ngx-charts-area-chart
-      *ngIf="occupancyChartData.length > 0 && occupancyChartData[0]?.series?.length >= 1 && !loadingOccupancy"
-      [view]="chartOptions.view || [800, 300]"
-      [scheme]="'vivid'"
-      [results]="occupancyChartData"
-      [gradient]="true"
-      [curve]="curve"
-      [xAxis]="chartOptions.showXAxis"
-      [yAxis]="chartOptions.showYAxis"
-      [legend]="chartOptions.showLegend"
-      [showXAxisLabel]="chartOptions.showXAxisLabel"
-      [showYAxisLabel]="chartOptions.showYAxisLabel"
-      [xAxisLabel]="chartOptions.xAxisLabel"
-      [yAxisLabel]="'Occupancy'"
-      [autoScale]="chartOptions.autoScale"
-      [timeline]="chartOptions.timeline"
-      [animations]="chartOptions.animations">
-      </ngx-charts-area-chart>
+      <div class="chart-with-live-marker" *ngIf="occupancyChartData.length > 0 && occupancyChartData[0]?.series?.length >= 1 && !loadingOccupancy">
+        <ngx-charts-area-chart
+          [view]="chartOptions.view || [800, 300]"
+          [scheme]="'vivid'"
+          [results]="occupancyChartData"
+          [gradient]="true"
+          [curve]="curve"
+          [xAxis]="chartOptions.showXAxis"
+          [yAxis]="chartOptions.showYAxis"
+          [legend]="chartOptions.showLegend"
+          [showXAxisLabel]="chartOptions.showXAxisLabel"
+          [showYAxisLabel]="chartOptions.showYAxisLabel"
+          [xAxisLabel]="chartOptions.xAxisLabel"
+          [yAxisLabel]="'Occupancy'"
+          [autoScale]="chartOptions.autoScale"
+          [timeline]="chartOptions.timeline"
+          [animations]="chartOptions.animations">
+        </ngx-charts-area-chart>
+        <!-- LIVE Marker Line -->
+        <div 
+          *ngIf="liveMarkerPosition !== null" 
+          class="live-marker-line"
+          [style.left.%]="liveMarkerPosition">
+          <div class="live-marker-label">LIVE</div>
+        </div>
+      </div>
       <div *ngIf="occupancyChartData.length === 0 && !loadingOccupancy" class="no-data">
         <mat-icon class="no-data-icon">bar_chart</mat-icon>
         <h3>No Occupancy Data</h3>
@@ -159,7 +149,6 @@
     <div class="card demographics-analysis-card">
       <div class="stat-title">
         Demographics Analysis
-        <span class="stat-subtitle" *ngIf="demographicsTimezone">({{ demographicsTimezone }})</span>
       </div>
       <div class="chart-container-wrapper">
         <div *ngIf="loadingDemographics" class="chart-loading">

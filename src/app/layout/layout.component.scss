@@ -19,6 +19,7 @@
   display: flex;
   flex-direction: column;
   position: fixed;
+  left: 0;
   height: 100vh;
   z-index: 10;
   overflow: hidden;
@@ -118,6 +119,7 @@
   border-left-color: white;
 }
 
+
 .nav-icon {
   width: 24px;
   margin-right: 10px;
@@ -202,7 +204,7 @@
   max-width: calc(100% - 260px);
   box-sizing: border-box;
   overflow-x: hidden; // Prevent horizontal scrolling
-  transition: margin-left 0.3s ease-in-out, width 0.3s ease-in-out, max-width 0.3s ease-in-out;
+  transition: margin-left 0.3s ease-in-out, margin-right 0.3s ease-in-out, width 0.3s ease-in-out, max-width 0.3s ease-in-out;
 
   &.full-width {
     margin-left: 80px; // Keep 80px for collapsed sidebar

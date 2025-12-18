@@ -13,7 +13,7 @@ import { SiteService } from '../../core/services/site.service';
 import { NotificationService, Alert } from '../../core/services/notification.service';
 import { AuthService } from '../../core/services/auth.service';
 import { NgxChartsModule } from '@swimlane/ngx-charts';
-import { Subscription, forkJoin, debounceTime, distinctUntilChanged, catchError, of, Subject, switchMap } from 'rxjs';
+import { Subscription, debounceTime, distinctUntilChanged, catchError, of, Subject, switchMap } from 'rxjs';
 import { curveCardinal } from 'd3-shape';
 
 @Component({
@@ -37,18 +37,29 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   previousFootfall = 0;
   previousDwellTime = 0;
+  previousLiveOccupancy = 0;
+  
+  // Percentage change calculations
+  liveOccupancyChange: { value: number; isPositive: boolean } | null = null;
+  footfallChange: { value: number; isPositive: boolean } | null = null;
+  dwellTimeChange: { value: number; isPositive: boolean } | null = null;
+  
   occupancyChartData: any[] = [];
   demographicsChartData: any[] = [];
   demographicsAnalysisChartData: any[] = [];
   
   // Timezone information from backend
   siteTimezone: string = '';
-  occupancyTimezone: string = '';
-  demographicsTimezone: string = '';
   
   // Demographics totals for display
   totalMaleCount = 0;
   totalFemaleCount = 0;
+  
+  // Live marker properties
+  liveMarkerPosition: number | null = null; // Percentage position (0-100)
+  occupancyTimeRange: { fromUtc: number; toUtc: number } | null = null;
+  private liveMarkerUpdateInterval?: any;
+  
   chartOptions = {
     showXAxis: true,
     showYAxis: true,
@@ -113,10 +124,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   
   // Window resize handler reference for cleanup
   private resizeHandler = () => this.updateChartViewDimensions();
-  
-  // Cached computed values for template performance
-  private _footfallChange?: { value: number; isPositive: boolean };
-  private _dwellTimeChange?: { value: number; isPositive: boolean };
 
   constructor(
     private api: ApiService, 
@@ -138,9 +145,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.siteChangeSubscription = this.siteService.siteChange$.subscribe(() => {
       // Clear caches and reload data when site changes
       this.api.clearCaches();
-      // Invalidate cached computed values
-      this._footfallChange = undefined;
-      this._dwellTimeChange = undefined;
+      // Reset comparison data
+      this.liveOccupancyChange = null;
+      this.footfallChange = null;
+      this.dwellTimeChange = null;
+      this.previousFootfall = 0;
+      this.previousDwellTime = 0;
+      this.previousLiveOccupancy = 0;
       this.updateDateDisplayText();
       this.loadDashboardData();
     });
@@ -158,6 +169,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // Update chart dimensions on window resize
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', this.resizeHandler);
+    }
+    
+    // Start live marker updates if viewing today
+    if (this.isSelectedDateToday()) {
+      this.startLiveMarkerUpdates();
     }
   }
   
@@ -191,10 +207,24 @@ export class DashboardComponent implements OnInit, OnDestroy {
         if (res) {
           // Backend provides: { siteId, fromUtc, toUtc, footfall }
           this.todaysFootfall = res.footfall ?? 0;
-          this.previousFootfall = 0; // Backend doesn't provide previousFootfall
           this.footfallDisplayValue = this.todaysFootfall.toLocaleString();
-          this._footfallChange = undefined; // Backend doesn't provide footfallChange
           this.updateDateDisplayText();
+          // Reload yesterday's comparison
+          const now = Date.now();
+          const dayDiff = 24 * 60 * 60 * 1000;
+          const yesterdayFromUtc = Date.UTC(new Date(now - dayDiff).getUTCFullYear(), new Date(now - dayDiff).getUTCMonth(), new Date(now - dayDiff).getUTCDate(), 8, 0, 0, 0);
+          const yesterdayToUtc = now - dayDiff;
+          if (yesterdayToUtc > yesterdayFromUtc) {
+            const footfallSub = this.api.getFootfall(yesterdayFromUtc, yesterdayToUtc).subscribe({
+              next: (yesterdayRes) => {
+                if (yesterdayRes) {
+                  this.previousFootfall = yesterdayRes.footfall ?? 0;
+                  this.calculateFootfallChange();
+                }
+              }
+            });
+            this.httpSubscriptions.push(footfallSub);
+          }
           this.cdr.markForCheck();
         }
         this.footfallRefreshPending = false;
@@ -223,6 +253,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
     // Complete the subject to prevent memory leaks
     this.footfallRefreshTrigger$.complete();
+    
+    // Stop live marker updates
+    this.stopLiveMarkerUpdates();
   }
 
   private loadDashboardData(): void {
@@ -286,20 +319,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // These APIs power summary cards and must load first
     const phase1Sub = this.api.getSummaryCardsBatch(fromUtc, toUtc).subscribe({
       next: (phase1Results) => {
+        // Reset comparison data when loading new site data
+        this.previousFootfall = 0;
+        this.previousDwellTime = 0;
+        this.footfallChange = null;
+        this.dwellTimeChange = null;
+        
         // Process footfall - Use backend data directly
         // Backend provides: { siteId, fromUtc, toUtc, footfall }
         if (phase1Results.footfall) {
           // Footfall data processed - API provides: { siteId, fromUtc, toUtc, footfall }
           this.todaysFootfall = phase1Results.footfall.footfall ?? 0;
-          this.previousFootfall = 0; // Backend doesn't provide previousFootfall
           this.footfallDisplayValue = this.todaysFootfall.toLocaleString();
-          this._footfallChange = undefined; // Backend doesn't provide footfallChange
           this.updateDateDisplayText();
         } else {
           this.todaysFootfall = 0;
           this.footfallDisplayValue = '0';
-          this.previousFootfall = 0;
-          this._footfallChange = undefined;
         }
         this.loadingFootfall = false;
         
@@ -308,22 +343,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
           // API always provides 'avgDwellMinutes' and 'dwellRecords' fields
           this.avgDwellTime = phase1Results.dwell.avgDwellMinutes ?? 0;
           this.dwellRecords = phase1Results.dwell.dwellRecords ?? 0;
-          this.previousDwellTime = 0; // Backend doesn't provide previousDwellTime
           
           // Format display value: "23min 8sec" format
           const minutes = Math.floor(this.avgDwellTime);
           const seconds = Math.round((this.avgDwellTime % 1) * 60);
           this.dwellTimeDisplayValue = `${minutes}min ${seconds}sec`;
-          
-          this._dwellTimeChange = undefined; // Backend doesn't provide dwellTimeChange
         } else {
           this.avgDwellTime = 0;
           this.dwellRecords = 0;
           this.dwellTimeDisplayValue = '0min 0sec';
-          this.previousDwellTime = 0;
-          this._dwellTimeChange = undefined;
         }
         this.loadingDwell = false;
+        
+        // Load yesterday's data for comparison AFTER today's data is set
+        // This ensures calculations use the correct current values
+        this.loadYesterdayComparison(fromUtc, toUtc);
         
         // Phase 1 complete - trigger change detection for summary cards
         this.checkAllLoaded();
@@ -339,10 +373,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
             if (batchResults.occupancy) {
               this.processOccupancyData(batchResults.occupancy);
               // Extract timezone from API response
-              this.occupancyTimezone = batchResults.occupancy.timezone || '';
-              if (!this.siteTimezone && this.occupancyTimezone) {
-                this.siteTimezone = this.occupancyTimezone;
+              if (!this.siteTimezone && batchResults.occupancy.timezone) {
+                this.siteTimezone = batchResults.occupancy.timezone;
               }
+              // Reset comparison data when loading new occupancy data
+              this.previousLiveOccupancy = 0;
+              this.liveOccupancyChange = null;
+              
               // Backend doesn't provide liveOccupancy - use latest bucket for today
               if (this.isSelectedDateToday() && batchResults.occupancy.buckets?.length > 0) {
                 const latestBucket = batchResults.occupancy.buckets[batchResults.occupancy.buckets.length - 1];
@@ -350,6 +387,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
               } else {
                 this.liveOccupancy = 0;
               }
+              
+              // Load yesterday's occupancy for comparison AFTER current value is set
+              this.loadYesterdayOccupancy(fromUtc, toUtc);
             } else {
               // Clear data on error/null to show "no data available"
               this.occupancyChartData = [];
@@ -362,9 +402,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
               this.processDemographicsData(batchResults.demographics);
               this.processDemographicsAnalysisData(batchResults.demographics);
               // Extract timezone from API response
-              this.demographicsTimezone = batchResults.demographics.timezone || '';
-              if (!this.siteTimezone && this.demographicsTimezone) {
-                this.siteTimezone = this.demographicsTimezone;
+              if (!this.siteTimezone && batchResults.demographics.timezone) {
+                this.siteTimezone = batchResults.demographics.timezone;
               }
             } else {
               // Clear data on error/null to show "no data available"
@@ -477,12 +516,23 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private processOccupancyData(data: any): void {
     // Occupancy data processed - API provides: { siteId, fromUtc, toUtc, timezone, buckets: [{ utc, local, avg }] }
     
+    // Store time range for live marker calculation
+    if (data?.fromUtc && data?.toUtc) {
+      this.occupancyTimeRange = {
+        fromUtc: data.fromUtc,
+        toUtc: data.toUtc
+      };
+    } else {
+      this.occupancyTimeRange = null;
+    }
+    
     // Backend provides buckets array with: { utc, local, avg }
     // local format: "18/12/2025 12:00:00" -> extract "12:00"
     const buckets = data?.buckets || [];
     
     if (buckets.length === 0) {
       this.occupancyChartData = [];
+      this.liveMarkerPosition = null;
       this.cdr.markForCheck();
       return;
     }
@@ -510,6 +560,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
       name: 'Occupancy',
       series: series
     }];
+    
+    // Calculate and start updating live marker position
+    this.calculateLiveMarkerPosition();
+    this.startLiveMarkerUpdates();
+    
     this.cdr.markForCheck();
   }
 
@@ -639,10 +694,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
         // Backend should provide rounded occupancy value - use it directly
         if (!isNaN(occupancyValue) && occupancyValue >= 0 && this.isSelectedDateToday()) {
           this.liveOccupancy = occupancyValue; // Backend should provide rounded value
+          this.calculateLiveOccupancyChange();
           this.cdr.markForCheck();
         } else if (!this.isSelectedDateToday()) {
           // Ensure live occupancy is 0 for past/future dates
           this.liveOccupancy = 0;
+          this.liveOccupancyChange = null;
           this.cdr.markForCheck();
         }
       },
@@ -762,25 +819,194 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
 
-  // Computed properties cached for template performance - recalculated when underlying values change
-  get footfallChange(): { value: number; isPositive: boolean } {
-    // Use backend-provided change directly - NO calculation
-    // Backend may provide footfallChange in the API response, but it's optional
-    if (this._footfallChange !== undefined) {
-      return this._footfallChange;
-    }
-    // Default if backend doesn't provide change (optional field)
-    return { value: 0, isPositive: true };
+  /**
+   * Load yesterday's data for comparison calculations
+   */
+  private loadYesterdayComparison(fromUtc: number, toUtc: number): void {
+    // Calculate yesterday's date range (same time period, but yesterday)
+    const dayDiff = 24 * 60 * 60 * 1000; // 1 day in milliseconds
+    const yesterdayFromUtc = fromUtc - dayDiff;
+    const yesterdayToUtc = toUtc - dayDiff;
+    
+    // Store current site ID to verify we're still on the same site when response arrives
+    const currentSiteId = this.auth.getSiteId();
+    
+    // Fetch yesterday's footfall
+    const footfallSub = this.api.getFootfall(yesterdayFromUtc, yesterdayToUtc).subscribe({
+      next: (res) => {
+        // Verify we're still on the same site (prevent race conditions)
+        if (this.auth.getSiteId() !== currentSiteId) {
+          return; // Site changed, ignore this response
+        }
+        
+        if (res && res.footfall !== undefined && res.footfall !== null) {
+          this.previousFootfall = res.footfall;
+          // Recalculate with current values (in case they changed)
+          this.calculateFootfallChange();
+        } else {
+          // No data for yesterday - hide percentage
+          this.previousFootfall = 0;
+          this.footfallChange = null;
+        }
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        // Only update if still on same site
+        if (this.auth.getSiteId() === currentSiteId) {
+          this.previousFootfall = 0;
+          this.footfallChange = null;
+          this.cdr.markForCheck();
+        }
+      }
+    });
+    
+    // Fetch yesterday's dwell time
+    const dwellSub = this.api.getDwell(yesterdayFromUtc, yesterdayToUtc).subscribe({
+      next: (res) => {
+        // Verify we're still on the same site (prevent race conditions)
+        if (this.auth.getSiteId() !== currentSiteId) {
+          return; // Site changed, ignore this response
+        }
+        
+        if (res && res.avgDwellMinutes !== undefined && res.avgDwellMinutes !== null) {
+          this.previousDwellTime = res.avgDwellMinutes;
+          // Recalculate with current values (in case they changed)
+          this.calculateDwellTimeChange();
+        } else {
+          // No data for yesterday - hide percentage
+          this.previousDwellTime = 0;
+          this.dwellTimeChange = null;
+        }
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        // Only update if still on same site
+        if (this.auth.getSiteId() === currentSiteId) {
+          this.previousDwellTime = 0;
+          this.dwellTimeChange = null;
+          this.cdr.markForCheck();
+        }
+      }
+    });
+    
+    this.httpSubscriptions.push(footfallSub, dwellSub);
   }
-
-  get dwellTimeChange(): { value: number; isPositive: boolean } {
-    // Use backend-provided change directly - NO calculation
-    // Backend may provide dwellTimeChange in the API response, but it's optional
-    if (this._dwellTimeChange !== undefined) {
-      return this._dwellTimeChange;
+  
+  /**
+   * Load yesterday's occupancy for live occupancy comparison
+   */
+  private loadYesterdayOccupancy(fromUtc: number, toUtc: number): void {
+    // For live occupancy, compare current value to same time yesterday
+    const now = Date.now();
+    const dayDiff = 24 * 60 * 60 * 1000;
+    const yesterdaySameTime = now - dayDiff;
+    
+    // Calculate yesterday's date range
+    const yesterdayFromUtc = fromUtc - dayDiff;
+    const yesterdayToUtc = yesterdaySameTime; // Up to same time yesterday
+    
+    // Store current site ID to verify we're still on the same site when response arrives
+    const currentSiteId = this.auth.getSiteId();
+    
+    // Only fetch if we have a valid range
+    if (yesterdayToUtc > yesterdayFromUtc) {
+      const occupancySub = this.api.getOccupancy(yesterdayFromUtc, yesterdayToUtc).subscribe({
+        next: (res) => {
+          // Verify we're still on the same site (prevent race conditions)
+          if (this.auth.getSiteId() !== currentSiteId) {
+            return; // Site changed, ignore this response
+          }
+          
+          if (res && res.buckets && res.buckets.length > 0) {
+            // Get the bucket closest to the same time yesterday
+            const latestBucket = res.buckets[res.buckets.length - 1];
+            this.previousLiveOccupancy = Number(latestBucket.avg) || 0;
+            // Recalculate with current value (in case it changed)
+            this.calculateLiveOccupancyChange();
+          } else {
+            this.previousLiveOccupancy = 0;
+            this.liveOccupancyChange = null;
+            this.cdr.markForCheck();
+          }
+        },
+        error: () => {
+          // Only update if still on same site
+          if (this.auth.getSiteId() === currentSiteId) {
+            this.previousLiveOccupancy = 0;
+            this.liveOccupancyChange = null;
+            this.cdr.markForCheck();
+          }
+        }
+      });
+      
+      this.httpSubscriptions.push(occupancySub);
+    } else {
+      this.previousLiveOccupancy = 0;
+      this.liveOccupancyChange = null;
     }
-    // Default if backend doesn't provide change (optional field)
-    return { value: 0, isPositive: true };
+  }
+  
+  /**
+   * Calculate percentage change for live occupancy
+   */
+  private calculateLiveOccupancyChange(): void {
+    // Only calculate if we have valid previous data (need a baseline to compare against)
+    if (this.previousLiveOccupancy === 0 || this.previousLiveOccupancy === null || this.previousLiveOccupancy === undefined) {
+      this.liveOccupancyChange = null;
+      return;
+    }
+    
+    // Calculate percentage change (always show, even if 0%)
+    const change = ((this.liveOccupancy - this.previousLiveOccupancy) / this.previousLiveOccupancy) * 100;
+    const changeValue = Math.abs(change);
+    
+    this.liveOccupancyChange = {
+      value: changeValue,
+      isPositive: change >= 0
+    };
+    this.cdr.markForCheck();
+  }
+  
+  /**
+   * Calculate percentage change for footfall
+   */
+  private calculateFootfallChange(): void {
+    // Only calculate if we have valid previous data (need a baseline to compare against)
+    if (this.previousFootfall === 0 || this.previousFootfall === null || this.previousFootfall === undefined) {
+      this.footfallChange = null;
+      return;
+    }
+    
+    // Calculate percentage change (always show, even if 0%)
+    const change = ((this.todaysFootfall - this.previousFootfall) / this.previousFootfall) * 100;
+    const changeValue = Math.abs(change);
+    
+    this.footfallChange = {
+      value: changeValue,
+      isPositive: change >= 0
+    };
+    this.cdr.markForCheck();
+  }
+  
+  /**
+   * Calculate percentage change for dwell time
+   */
+  private calculateDwellTimeChange(): void {
+    // Only calculate if we have valid previous data (need a baseline to compare against)
+    if (this.previousDwellTime === 0 || this.previousDwellTime === null || this.previousDwellTime === undefined) {
+      this.dwellTimeChange = null;
+      return;
+    }
+    
+    // Calculate percentage change (always show, even if 0%)
+    const change = ((this.avgDwellTime - this.previousDwellTime) / this.previousDwellTime) * 100;
+    const changeValue = Math.abs(change);
+    
+    this.dwellTimeChange = {
+      value: changeValue,
+      isPositive: change >= 0
+    };
+    this.cdr.markForCheck();
   }
 
   onDateChange(date: Date | null): void {
@@ -799,12 +1025,25 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.liveOccupancy = 0;
       // Update date display text immediately
       this.updateDateDisplayText();
-      // Invalidate cached computed values
-      this._footfallChange = undefined;
-      this._dwellTimeChange = undefined;
+      // Reset comparison data
+      this.liveOccupancyChange = null;
+      this.footfallChange = null;
+      this.dwellTimeChange = null;
+      this.previousFootfall = 0;
+      this.previousDwellTime = 0;
+      this.previousLiveOccupancy = 0;
       // Update notification service with selected date
       this.notificationService.setSelectedDate(normalizedDate);
       // Date change logged only for debugging - removed to reduce console noise
+      
+      // Recalculate live marker for new date
+      this.calculateLiveMarkerPosition();
+      if (this.isSelectedDateToday()) {
+        this.startLiveMarkerUpdates();
+      } else {
+        this.stopLiveMarkerUpdates();
+      }
+      
       this.loadDashboardData();
       this.cdr.markForCheck();
     }
@@ -859,6 +1098,56 @@ export class DashboardComponent implements OnInit, OnDestroy {
       } else {
         this.dateDisplayText = this.selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
+    }
+  }
+
+  private calculateLiveMarkerPosition(): void {
+    // Only show live marker if:
+    // 1. We have occupancy data
+    // 2. Selected date is today
+    // 3. We have a valid time range
+    if (!this.occupancyTimeRange || !this.isSelectedDateToday() || this.occupancyChartData.length === 0) {
+      this.liveMarkerPosition = null;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const now = Date.now();
+    const { fromUtc, toUtc } = this.occupancyTimeRange;
+    
+    // Calculate position as percentage (0-100)
+    if (now >= fromUtc && now <= toUtc) {
+      // Current time is within the chart range
+      const position = ((now - fromUtc) / (toUtc - fromUtc)) * 100;
+      this.liveMarkerPosition = Math.min(100, Math.max(0, position));
+    } else if (now > toUtc) {
+      // Current time is beyond the chart range - show at the end
+      this.liveMarkerPosition = 100;
+    } else {
+      // Current time is before the chart range - don't show
+      this.liveMarkerPosition = null;
+    }
+    
+    this.cdr.markForCheck();
+  }
+
+  private startLiveMarkerUpdates(): void {
+    // Clear any existing interval
+    this.stopLiveMarkerUpdates();
+    
+    // Update immediately
+    this.calculateLiveMarkerPosition();
+    
+    // Update every 30 seconds to keep marker current
+    this.liveMarkerUpdateInterval = setInterval(() => {
+      this.calculateLiveMarkerPosition();
+    }, 30000);
+  }
+
+  private stopLiveMarkerUpdates(): void {
+    if (this.liveMarkerUpdateInterval) {
+      clearInterval(this.liveMarkerUpdateInterval);
+      this.liveMarkerUpdateInterval = undefined;
     }
   }
 

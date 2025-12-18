@@ -182,6 +182,13 @@
   margin-top: 8px;
 }
 
+.stat-percentage-change {
+  font-size: 0.85rem;
+  color: #ef4444;
+  margin-top: 8px;
+  font-weight: 500;
+}
+
 .stat-meta {
   font-size: 0.75rem;
   color: #9ca3af;
@@ -232,13 +239,14 @@
   background: #ffffff;
   border-radius: 8px;
   padding: 24px;
+  padding-top: 30px; // Extra padding at top for LIVE label
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   margin-bottom: 30px; // Increased margin to prevent overlap with demographics
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
   overflow-x: hidden; // Prevent horizontal overflow
-  overflow-y: visible; // Allow vertical overflow for chart elements
+  overflow-y: visible; // Allow vertical overflow for chart elements and LIVE label
   position: relative;
   
   ::ng-deep ngx-charts-line-chart,
@@ -260,6 +268,13 @@
       max-width: 100% !important;
       height: auto !important;
       overflow: visible;
+      
+      // Fix tooltip-area rect that can block chart visibility
+      rect.tooltip-area {
+        pointer-events: auto !important;
+        opacity: 0 !important;
+        fill: transparent !important;
+      }
     }
     
     .chart {
@@ -337,7 +352,9 @@
   max-width: 100%;
   box-sizing: border-box;
   overflow-x: hidden; // Prevent horizontal overflow
+  overflow-y: visible; // Allow vertical overflow for LIVE label
   min-height: 250px; // Ensure consistent height for skeleton/chart
+  padding-top: 5px; // Add small padding at top for LIVE label visibility
   
   .chart-loading {
     position: absolute;
@@ -390,6 +407,13 @@
         max-width: 100% !important;
         height: auto !important;
         overflow: visible;
+        
+        // Fix tooltip-area rect that can block chart visibility
+        rect.tooltip-area {
+          pointer-events: auto !important;
+          opacity: 0 !important;
+          fill: transparent !important;
+        }
       }
       
       .chart {
@@ -401,6 +425,55 @@
         width: 100% !important;
         max-width: 100% !important;
       }
+    }
+  }
+  
+  // Chart with live marker wrapper
+  .chart-with-live-marker {
+    position: relative;
+    width: 100%;
+    padding-top: 25px; // Add padding at top to make room for LIVE label
+    margin-top: 0;
+    z-index: 1; // Base z-index for the container
+    
+    ::ng-deep ngx-charts-area-chart {
+      position: relative;
+      z-index: 1;
+    }
+    
+    // Ensure SVG and chart elements don't overlap the LIVE marker
+    ::ng-deep svg {
+      z-index: 1;
+    }
+  }
+  
+  // LIVE Marker Line
+  .live-marker-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #ef4444; // Red color
+    border-left: 2px dashed #ef4444;
+    pointer-events: none;
+    z-index: 1000; // High z-index to appear above chart elements
+    transform: translateX(-50%); // Center the line on the position
+    
+    .live-marker-label {
+      position: absolute;
+      top: 8px; // Move label higher to be fully visible above the chart
+      left: -8px;
+      transform: translateX(-50%) rotate(90deg);
+      transform-origin: center;
+      background: #ef4444;
+      color: white;
+      font-size: 0.7rem;
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 3px;
+      white-space: nowrap;
+      z-index: 1001 !important; // Even higher z-index to ensure label is on top of everything
+      letter-spacing: 0.5px;
     }
   }
 }
@@ -469,6 +542,13 @@
         max-width: 100% !important;
         height: auto !important;
         overflow: visible;
+        
+        // Fix tooltip-area rect that can block chart visibility
+        rect.tooltip-area {
+          pointer-events: auto !important;
+          opacity: 0 !important;
+          fill: transparent !important;
+        }
       }
       
       .chart {
@@ -775,6 +855,13 @@
     display: block !important;
     width: 100% !important;
     height: auto !important;
+    
+    // Fix tooltip-area rect that can block chart visibility
+    rect.tooltip-area {
+      pointer-events: auto !important;
+      opacity: 0 !important;
+      fill: transparent !important;
+    }
     
     * {
       stroke-dashoffset: 0 !important;
