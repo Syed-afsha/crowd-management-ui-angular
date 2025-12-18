@@ -541,10 +541,20 @@ export class DashboardComponent implements OnInit, OnDestroy {
           next: (batchResults) => {
             if (batchResults.occupancy) {
               this.processOccupancyData(batchResults.occupancy);
+              // Set live occupancy from latest bucket if Socket.IO not connected
+              if (this.isSelectedDateToday() && batchResults.occupancy.buckets?.length > 0) {
+                const latestBucket = batchResults.occupancy.buckets[batchResults.occupancy.buckets.length - 1];
+                const occupancyValue = Number(latestBucket.avg) || 0;
+                if (this.liveOccupancy === 0 || !this.socket.isConnectionHealthy()) {
+                  this.liveOccupancy = occupancyValue;
+                }
+              }
             } else {
               // Clear data on error/null to show "no data available"
               this.occupancyChartData = [];
-              this.liveOccupancy = 0;
+              if (!this.isSelectedDateToday()) {
+                this.liveOccupancy = 0;
+              }
             }
             this.loadingOccupancy = false;
             
