@@ -120,14 +120,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
   curve = curveCardinal.tension(0.5);
 
   // Selected date (for viewing historical data)
-  // Defaults to today at midnight UTC
+  // Defaults to today at midnight (converted to UTC for consistent storage)
   selectedDate: Date = (() => {
     const today = new Date();
+    // Use local date methods to match what the date picker shows
+    // Then convert to UTC for consistent storage and comparison
     return new Date(Date.UTC(
-      today.getUTCFullYear(),
-      today.getUTCMonth(),
-      today.getUTCDate(),
-      0, 0, 0, 0 // Midnight UTC
+      today.getFullYear(),  // Use local year
+      today.getMonth(),     // Use local month
+      today.getDate(),      // Use local date
+      0, 0, 0, 0
     ));
   })();
   
@@ -1172,15 +1174,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   isSelectedDateToday(): boolean {
-    // Compare dates in UTC to avoid timezone issues
+    // Compare dates using local date values (converted to UTC for comparison)
+    // This ensures consistency with how selectedDate is initialized
     const today = new Date();
     const todayUtc = new Date(Date.UTC(
-      today.getUTCFullYear(),
-      today.getUTCMonth(),
-      today.getUTCDate(),
+      today.getFullYear(),  // Use local year
+      today.getMonth(),     // Use local month
+      today.getDate(),      // Use local date
       0, 0, 0, 0
     ));
-    // selectedDate is already normalized to UTC midnight
+    // selectedDate is already normalized to UTC midnight using local date values
     return this.selectedDate.getTime() === todayUtc.getTime();
   }
 
@@ -1210,12 +1213,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private updateDateDisplayText(): void {
-    // Compare dates in UTC to avoid timezone issues
+    // Compare dates using local date values (converted to UTC for comparison)
+    // This ensures consistency with how selectedDate is initialized
     const today = new Date();
     const todayUtc = new Date(Date.UTC(
-      today.getUTCFullYear(),
-      today.getUTCMonth(),
-      today.getUTCDate(),
+      today.getFullYear(),  // Use local year
+      today.getMonth(),     // Use local month
+      today.getDate(),      // Use local date
       0, 0, 0, 0
     ));
     
@@ -1223,9 +1227,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.dateDisplayText = 'Today';
     } else {
       const yesterdayUtc = new Date(Date.UTC(
-        today.getUTCFullYear(),
-        today.getUTCMonth(),
-        today.getUTCDate() - 1,
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate() - 1,  // Subtract 1 from local date
         0, 0, 0, 0
       ));
       if (this.selectedDate.getTime() === yesterdayUtc.getTime()) {
