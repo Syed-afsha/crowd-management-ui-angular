@@ -14,7 +14,7 @@ import { Subscription } from 'rxjs';
 })
 export class NotificationBellComponent implements OnInit, OnDestroy {
   showDropdown = false;
-  alerts: Alert[] = [];
+  alerts: (Alert & { _formattedTime?: string })[] = [];
   unreadCount = 0;
   private subscription?: Subscription;
   // Cache for formatted times to avoid recalculating on every change detection
@@ -28,15 +28,21 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.subscription = this.notificationService.alerts$.subscribe(() => {
-      // Use filtered alerts based on selected date
-      this.alerts = this.notificationService.getFilteredAlerts();
+      // Use filtered alerts based on selected date and pre-process them
+      const rawAlerts = this.notificationService.getFilteredAlerts();
+      this.alerts = rawAlerts.map(alert => ({
+        ...alert,
+        _formattedTime: this.formatAlertTime(alert.timestamp)
+      }));
       this.unreadCount = this.notificationService.getFilteredUnreadCount();
-      // Clear cache when alerts change
-      this.timeCache.clear();
       this.cdr.markForCheck();
     });
-    // Initialize with filtered alerts
-    this.alerts = this.notificationService.getFilteredAlerts();
+    // Initialize with filtered alerts and pre-process them
+    const rawAlerts = this.notificationService.getFilteredAlerts();
+    this.alerts = rawAlerts.map(alert => ({
+      ...alert,
+      _formattedTime: this.formatAlertTime(alert.timestamp)
+    }));
     this.unreadCount = this.notificationService.getFilteredUnreadCount();
     this.cdr.markForCheck();
   }

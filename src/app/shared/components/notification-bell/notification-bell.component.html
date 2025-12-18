@@ -24,7 +24,7 @@
         <div class="alert-icon">{{ alert.actionType === 'entry' ? '→' : '←' }}</div>
         <div class="alert-content">
           <div class="alert-message">{{ alert.message }}</div>
-          <div class="alert-time">{{ formatAlertTime(alert.timestamp) }}</div>
+          <div class="alert-time">{{ alert._formattedTime }}</div>
         </div>
       </div>
     </div>

@@ -21,6 +21,8 @@ export class EntriesComponent implements OnInit, OnDestroy {
   totalRecords = 0;
   totalPages = 0;
   pageNumbers: (number | string)[] = []; // Expose as property to avoid method calls in template (can include '...' for ellipsis)
+  paginationRangeStart = 0;
+  paginationRangeEnd = 0;
   private subscription?: Subscription;
   private siteChangeSubscription?: Subscription;
   // Cache for computed values
@@ -71,12 +73,14 @@ export class EntriesComponent implements OnInit, OnDestroy {
     
     this.subscription = this.api.getEntryExit(this.currentPage, this.pageSize).subscribe({
       next: (res) => {
-        // Create new array references to ensure change detection
-        this.records = (res.records || res.data || []).slice();
+        // Pre-process records to compute all formatting upfront (performance optimization)
+        const rawRecords = res.records || res.data || [];
+        this.records = rawRecords.map((record: any) => this.preprocessRecord(record));
         this.totalRecords = res.totalRecords || res.total || this.records.length;
         this.totalPages = Math.ceil(this.totalRecords / this.pageSize);
-        // Update page numbers
+        // Update page numbers and pagination range
         this.updatePageNumbers();
+        this.updatePaginationRange();
         this.loading = false;
         this.cdr.markForCheck();
       },
@@ -129,6 +133,11 @@ export class EntriesComponent implements OnInit, OnDestroy {
       this.updatePageNumbers();
       this.loadEntries();
     }
+  }
+  
+  private updatePaginationRange(): void {
+    this.paginationRangeStart = (this.currentPage - 1) * this.pageSize + 1;
+    this.paginationRangeEnd = Math.min(this.currentPage * this.pageSize, this.totalRecords);
   }
 
   private updatePageNumbers(): void {
@@ -224,25 +233,48 @@ export class EntriesComponent implements OnInit, OnDestroy {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   }
 
-  isActive(record: any): boolean {
-    return !record.exitUtc && !record.exitTime && !record.exitLocal;
+  private preprocessRecord(record: any): any {
+    // Pre-compute all formatting and derived values to avoid template method calls
+    const personName = record.personName || record.name || record.visitorName || 'N/A';
+    const gender = record.gender || 'N/A';
+    const isActive = !record.exitUtc && !record.exitTime && !record.exitLocal;
+    
+    // Pre-compute formatted dates
+    const entryDateTime = this.formatDateTime(record.entryUtc || record.entryTime || record.entryLocal);
+    const exitDateTime = isActive ? '--' : this.formatDateTime(record.exitUtc || record.exitTime || record.exitLocal);
+    
+    // Pre-compute dwell time
+    const dwellTime = isActive ? '--' : this.formatDwellTime(record.dwellMinutes || record.dwellTime || record.dwell);
+    
+    // Pre-compute avatar URL
+    const seed = record.personId 
+      ? (record.personId.charCodeAt(0) % 10) + 1
+      : (personName.charCodeAt(0) % 10) + 1;
+    const avatarUrl = `https://i.pravatar.cc/150?img=${seed}`;
+    
+    // Return new object with pre-computed values
+    return {
+      ...record,
+      // Pre-computed display values
+      _displayName: personName,
+      _displayGender: gender,
+      _isActive: isActive,
+      _entryDateTime: entryDateTime,
+      _exitDateTime: exitDateTime,
+      _dwellTime: dwellTime,
+      _avatarUrl: avatarUrl,
+      // Keep original values for tracking
+      _personId: record.personId || record.id
+    };
   }
 
   trackByRecordId(index: number, record: any): string {
-    return record.personId || record.id || index.toString();
+    // Use pre-computed person ID or fallback to index
+    return record._personId || record.personId || record.id || index.toString();
   }
 
   trackByPageNumber(index: number, page: number | string): number | string {
     return page;
-  }
-
-  getAvatarUrl(record: any): string {
-    // Generate avatar URL using pravatar.cc based on personId or personName
-    // This creates consistent placeholder avatars for each person
-    const seed = record.personId 
-      ? (record.personId.charCodeAt(0) % 10) + 1
-      : ((record.personName || record.name || record.visitorName || 'N/A').charCodeAt(0) % 10) + 1;
-    return `https://i.pravatar.cc/150?img=${seed}`;
   }
 
   onImageError(event: Event): void {
@@ -252,6 +284,4 @@ export class EntriesComponent implements OnInit, OnDestroy {
       img.src = 'https://i.pravatar.cc/150?img=1';
     }
   }
-
-  Math = Math;
 }

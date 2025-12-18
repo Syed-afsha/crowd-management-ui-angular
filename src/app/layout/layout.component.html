@@ -16,18 +16,18 @@
         class="nav-item"
       >
         <mat-icon class="nav-icon">home</mat-icon>
-        <span class="nav-text">{{ getTranslation('overview') }}</span>
+        <span class="nav-text">{{ translationOverview }}</span>
       </a>
 
       <a routerLink="/entries" routerLinkActive="active" class="nav-item">
         <mat-icon class="nav-icon">unfold_more</mat-icon>
-        <span class="nav-text">{{ getTranslation('crowdEntries') }}</span>
+        <span class="nav-text">{{ translationCrowdEntries }}</span>
       </a>
     </nav>
 
     <a class="logout-btn" (click)="logout()">
       <mat-icon class="logout-icon">power_settings_new</mat-icon>
-      <span class="logout-text">{{ getTranslation('logout') }}</span>
+      <span class="logout-text">{{ translationLogout }}</span>
     </a>
   </aside>
 
@@ -52,7 +52,7 @@
               <mat-icon class="location-icon-small">location_on</mat-icon>
               <div class="site-info">
                 <span class="site-name">{{ site.name || site.siteId }}</span>
-                <span class="site-location">{{ site.city || '' }}{{ site.city && site.country ? ', ' : '' }}{{ site.country || '' }}</span>
+                <span class="site-location">{{ site._locationText }}</span>
               </div>
             </div>
             <div class="site-option empty" *ngIf="sites.length === 0">
@@ -74,11 +74,11 @@
         <div class="user-profile">
           <img 
             *ngIf="userInfo"
-            [src]="getAvatarUrl()" 
+            [src]="userAvatarUrl" 
             [alt]="userInfo.name || userInfo.email"
             (error)="onProfileImageError($event)"
             class="profile-avatar-image">
-          <div *ngIf="!userInfo" class="profile-avatar-initials">{{ getUserInitials() }}</div>
+          <div *ngIf="!userInfo" class="profile-avatar-initials">{{ userInitials }}</div>
         </div>
       </div>
     </header>

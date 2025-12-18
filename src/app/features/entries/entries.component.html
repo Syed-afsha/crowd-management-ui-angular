@@ -26,23 +26,17 @@
           <td>
             <div class="user-cell">
               <img 
-                [src]="getAvatarUrl(r)" 
+                [src]="r._avatarUrl" 
                 class="table-avatar"
-                [alt]="(r.personName || r.name || r.visitorName || 'N/A')"
+                [alt]="r._displayName"
                 (error)="onImageError($event)">
-              <span>{{ r.personName || r.name || r.visitorName || 'N/A' }}</span>
+              <span>{{ r._displayName }}</span>
             </div>
           </td>
-          <td>{{ r.gender || 'N/A' }}</td>
-          <td>{{ formatDateTime(r.entryUtc || r.entryTime || r.entryLocal) }}</td>
-          <td>
-            <span *ngIf="isActive(r)">--</span>
-            <span *ngIf="!isActive(r)">{{ formatDateTime(r.exitUtc || r.exitTime || r.exitLocal) }}</span>
-          </td>
-          <td>
-            <span *ngIf="isActive(r)">--</span>
-            <span *ngIf="!isActive(r)">{{ formatDwellTime(r.dwellMinutes || r.dwellTime || r.dwell) }}</span>
-          </td>
+          <td>{{ r._displayGender }}</td>
+          <td>{{ r._entryDateTime }}</td>
+          <td>{{ r._exitDateTime }}</td>
+          <td>{{ r._dwellTime }}</td>
         </tr>
         <tr *ngIf="records.length === 0">
           <td colspan="5" class="no-data">No records found</td>
@@ -80,6 +74,6 @@
   </div>
 
   <div *ngIf="!loading" class="pagination-info">
-    Showing {{ (currentPage - 1) * pageSize + 1 }} - {{ Math.min(currentPage * pageSize, totalRecords) }} of {{ totalRecords }} records
+    Showing {{ paginationRangeStart }} - {{ paginationRangeEnd }} of {{ totalRecords }} records
   </div>
 </div>

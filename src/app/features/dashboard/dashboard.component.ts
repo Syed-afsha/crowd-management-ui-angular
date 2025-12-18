@@ -74,6 +74,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   curve = curveCardinal.tension(0.5); // Smooth wavy curves
 
   selectedDate: Date = new Date();
+  
+  // Pre-computed display values (performance optimization)
+  dateDisplayText = '';
+  footfallDisplayValue = '';
+  dwellTimeDisplayValue = '';
+  totalCrowdPercentage = 0;
+  malePercentage = 0;
+  femalePercentage = 0;
 
   private socketSubscriptions: Subscription[] = [];
   private httpSubscriptions: Subscription[] = [];
@@ -81,7 +89,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private footfallRefreshPending = false;
   
   // Cached computed values for template performance
-  private _dateDisplayText?: string;
   private _footfallChange?: { value: number; isPositive: boolean };
   private _dwellTimeChange?: { value: number; isPositive: boolean };
 
@@ -105,7 +112,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       // Invalidate cached computed values
       this._footfallChange = undefined;
       this._dwellTimeChange = undefined;
-      this._dateDisplayText = undefined;
+      this.updateDateDisplayText();
       this.loadDashboardData();
     });
     
@@ -231,8 +238,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
           const footfallValue = phase1Results.footfall?.footfall ?? phase1Results.footfall?.count ?? phase1Results.footfall?.todaysFootfall ?? phase1Results.footfall?.totalFootfall ?? 0;
           this.todaysFootfall = typeof footfallValue === 'number' ? Math.round(footfallValue) : parseInt(footfallValue) || 0;
           this.previousFootfall = phase1Results.footfall?.previousFootfall ?? phase1Results.footfall?.previousCount ?? phase1Results.footfall?.yesterdaysFootfall ?? 0;
+          // Pre-compute formatted display value
+          this.footfallDisplayValue = this.todaysFootfall.toLocaleString();
           this._footfallChange = undefined; // Invalidate cache
-          this._dateDisplayText = undefined; // Invalidate date display cache
+          this.updateDateDisplayText(); // Update date display
+        } else {
+          // Reset on error/null
+          this.todaysFootfall = 0;
+          this.footfallDisplayValue = '0';
         }
         this.loadingFootfall = false;
         
@@ -240,8 +253,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
         if (phase1Results.dwell) {
           const dwellValue = phase1Results.dwell?.avgDwellMinutes ?? phase1Results.dwell?.avgDwellTime ?? phase1Results.dwell?.averageDwellTime ?? phase1Results.dwell?.dwellMinutes ?? 0;
           this.avgDwellTime = typeof dwellValue === 'number' ? Math.round(dwellValue * 10) / 10 : parseFloat(dwellValue) || 0;
+          // Pre-compute formatted display value
+          const minutes = Math.floor(this.avgDwellTime);
+          const seconds = Math.round((this.avgDwellTime % 1) * 60);
+          this.dwellTimeDisplayValue = `${minutes}min ${seconds}sec`;
           this.previousDwellTime = phase1Results.dwell?.previousAvgDwellMinutes ?? phase1Results.dwell?.previousAvgDwellTime ?? phase1Results.dwell?.previousAverageDwellTime ?? 0;
           this._dwellTimeChange = undefined; // Invalidate cache
+        } else {
+          // Reset on error/null
+          this.avgDwellTime = 0;
+          this.dwellTimeDisplayValue = '0min 0sec';
         }
         this.loadingDwell = false;
         
@@ -327,8 +348,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
               this.processDemographicsData(phase2Results.demographics);
               this.processDemographicsAnalysisData(phase2Results.demographics);
             } else {
+              // Clear data on error/null to show "no data available"
               this.demographicsChartData = [];
               this.demographicsAnalysisChartData = [];
+              this.updateDemographicsPercentages(); // Reset percentages
             }
             this.loadingDemographics = false;
             
@@ -348,10 +371,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
               timestamp: new Date().toISOString()
             };
             console.error('❌ Dashboard: Error loading Phase 2 data (charts):', errorInfo);
-            // Reset chart data on error
+            // Reset chart data on error to show "no data available"
             this.occupancyChartData = [];
             this.demographicsChartData = [];
             this.demographicsAnalysisChartData = [];
+            this.updateDemographicsPercentages(); // Reset percentages
             this.loadingOccupancy = false;
             this.loadingDemographics = false;
             this.checkAllLoaded();
@@ -387,7 +411,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
             if (phase2Results.occupancy) {
               this.processOccupancyData(phase2Results.occupancy);
             } else {
+              // Clear data on error/null to show "no data available"
               this.occupancyChartData = [];
+              this.liveOccupancy = 0;
             }
             this.loadingOccupancy = false;
             
@@ -395,18 +421,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
               this.processDemographicsData(phase2Results.demographics);
               this.processDemographicsAnalysisData(phase2Results.demographics);
             } else {
+              // Clear data on error/null to show "no data available"
               this.demographicsChartData = [];
               this.demographicsAnalysisChartData = [];
+              this.updateDemographicsPercentages(); // Reset percentages
             }
             this.loadingDemographics = false;
             this.checkAllLoaded();
             this.cdr.markForCheck();
           },
           error: () => {
-            // Reset chart data on error
+            // Reset chart data on error to show "no data available"
             this.occupancyChartData = [];
             this.demographicsChartData = [];
             this.demographicsAnalysisChartData = [];
+            this.updateDemographicsPercentages(); // Reset percentages
             this.loadingOccupancy = false;
             this.loadingDemographics = false;
             this.checkAllLoaded();
@@ -654,10 +683,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // Force new array reference for change detection
     this.demographicsAnalysisChartData = [];
     this.demographicsAnalysisChartData = newAnalysisData;
-    // Invalidate memoized percentages
-    this._malePercentage = undefined;
-    this._femalePercentage = undefined;
-    this._lastDemographicsDataLength = this.demographicsAnalysisChartData.length;
+    // Pre-compute percentages for template
+    this.updateDemographicsPercentages();
     this.cdr.markForCheck();
   }
 
@@ -871,9 +898,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
               const footfallValue = res.footfall ?? res.count ?? res.todaysFootfall ?? res.totalFootfall ?? 0;
               this.todaysFootfall = typeof footfallValue === 'number' ? Math.round(footfallValue) : parseInt(footfallValue) || 0;
               this.previousFootfall = res.previousFootfall ?? res.previousCount ?? res.yesterdaysFootfall ?? 0;
+              // Pre-compute formatted display value
+              this.footfallDisplayValue = this.todaysFootfall.toLocaleString();
               // Invalidate cached computed values
               this._footfallChange = undefined;
-              this._dateDisplayText = undefined;
+              this.updateDateDisplayText();
               this.footfallRefreshPending = false;
               this.cdr.markForCheck();
             },
@@ -931,68 +960,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return { value: Math.abs(change), isPositive: change >= 0 };
   }
   
-  // Backwards compatibility getters (delegate to properties)
-  getFootfallChange(): { value: number; isPositive: boolean } {
-    return this.footfallChange;
-  }
-  
-  getDwellTimeChange(): { value: number; isPositive: boolean } {
-    return this.dwellTimeChange;
-  }
-
-  Math = Math; // Exposed for template use
-
-  // Memoized percentages to avoid recalculating on every change detection
-  private _malePercentage?: number;
-  private _femalePercentage?: number;
-  private _lastDemographicsDataLength = 0;
-
-  getMalePercentage(): number {
-    // Recalculate only if demographics data changed
-    if (this._malePercentage === undefined || 
-        this._lastDemographicsDataLength !== this.demographicsAnalysisChartData.length) {
-      if (this.demographicsAnalysisChartData.length === 0) {
-        this._malePercentage = 0;
-        this._femalePercentage = 0;
-      } else {
-        // Cache the lookup to avoid multiple find() calls
-        let male = 0;
-        let female = 0;
-        for (const d of this.demographicsAnalysisChartData) {
-          if (d.name === 'Male') male = d.value || 0;
-          if (d.name === 'Female') female = d.value || 0;
-        }
-        const total = male + female;
-        this._malePercentage = total === 0 ? 0 : Math.round((male / total) * 100);
-        this._femalePercentage = total === 0 ? 0 : Math.round((female / total) * 100);
-      }
-      this._lastDemographicsDataLength = this.demographicsAnalysisChartData.length;
-    }
-    return this._malePercentage || 0;
-  }
-
-  getFemalePercentage(): number {
-    // Recalculate only if demographics data changed (calculated together with male percentage)
-    if (this._femalePercentage === undefined || 
-        this._lastDemographicsDataLength !== this.demographicsAnalysisChartData.length) {
-      // Trigger calculation via getMalePercentage which calculates both
-      this.getMalePercentage();
-    }
-    return this._femalePercentage || 0;
-  }
-
-  getTotalCrowdPercentage(): number {
-    // Total percentage is always 100% (male% + female%)
-    return this.getMalePercentage() + this.getFemalePercentage();
-  }
-
   onDateChange(date: Date | null): void {
     if (date) {
       this.selectedDate = date;
       // Reset live occupancy when date changes - will be set correctly in loadDashboardData
       this.liveOccupancy = 0;
+      // Update date display text immediately
+      this.updateDateDisplayText();
       // Invalidate cached computed values
-      this._dateDisplayText = undefined;
       this._footfallChange = undefined;
       this._dwellTimeChange = undefined;
       // Update notification service with selected date
@@ -1010,30 +985,43 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return selected.getTime() === today.getTime();
   }
 
-  getDateDisplayText(): string {
-    // Use cached value if available and date hasn't changed
-    if (this._dateDisplayText !== undefined) {
-      return this._dateDisplayText;
-    }
-    
+  private updateDateDisplayText(): void {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const selected = new Date(this.selectedDate);
     selected.setHours(0, 0, 0, 0);
     
     if (selected.getTime() === today.getTime()) {
-      this._dateDisplayText = 'Today';
-      return this._dateDisplayText;
+      this.dateDisplayText = 'Today';
+    } else {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (selected.getTime() === yesterday.getTime()) {
+        this.dateDisplayText = 'Yesterday';
+      } else {
+        this.dateDisplayText = this.selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
     }
-    
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (selected.getTime() === yesterday.getTime()) {
-      this._dateDisplayText = 'Yesterday';
-      return this._dateDisplayText;
-    }
-    
-    this._dateDisplayText = this.selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    return this._dateDisplayText;
   }
+
+  private updateDemographicsPercentages(): void {
+    if (this.demographicsAnalysisChartData.length === 0) {
+      this.malePercentage = 0;
+      this.femalePercentage = 0;
+      this.totalCrowdPercentage = 0;
+      return;
+    }
+    
+    let male = 0;
+    let female = 0;
+    for (const d of this.demographicsAnalysisChartData) {
+      if (d.name === 'Male') male = d.value || 0;
+      if (d.name === 'Female') female = d.value || 0;
+    }
+    const total = male + female;
+    this.malePercentage = total === 0 ? 0 : Math.round((male / total) * 100);
+    this.femalePercentage = total === 0 ? 0 : Math.round((female / total) * 100);
+    this.totalCrowdPercentage = this.malePercentage + this.femalePercentage;
+  }
+
 }

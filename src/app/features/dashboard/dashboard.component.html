@@ -23,7 +23,7 @@
         (click)="picker.open()"
         type="button">
         <mat-icon class="calendar-icon">calendar_today</mat-icon>
-        <span>{{ getDateDisplayText() }}</span>
+        <span>{{ dateDisplayText }}</span>
       </button>
     </div>
   </div>
@@ -43,7 +43,7 @@
     <div class="card">
       <div class="stat-title">Today's Footfall</div>
       <div class="stat-value" [class.loading-state]="loadingFootfall">
-        <span *ngIf="!loadingFootfall">{{ todaysFootfall.toLocaleString() }}</span>
+        <span *ngIf="!loadingFootfall">{{ footfallDisplayValue }}</span>
         <mat-spinner *ngIf="loadingFootfall" diameter="24" class="inline-spinner"></mat-spinner>
       </div>
       <div *ngIf="previousFootfall > 0 && !loadingFootfall" class="stat-trend" [class.trend-up]="footfallChange.isPositive" [class.trend-down]="!footfallChange.isPositive">
@@ -57,7 +57,7 @@
     <div class="card">
       <div class="stat-title">Avg Dwell Time</div>
       <div class="stat-value" [class.loading-state]="loadingDwell">
-        <span *ngIf="!loadingDwell">{{ Math.floor(avgDwellTime) }}min {{ Math.round((avgDwellTime % 1) * 60) }}sec</span>
+        <span *ngIf="!loadingDwell">{{ dwellTimeDisplayValue }}</span>
         <mat-spinner *ngIf="loadingDwell" diameter="24" class="inline-spinner"></mat-spinner>
       </div>
       <div *ngIf="previousDwellTime > 0 && !loadingDwell" class="stat-trend" [class.trend-up]="dwellTimeChange.isPositive" [class.trend-down]="!dwellTimeChange.isPositive">
@@ -119,7 +119,7 @@
           [animations]="pieChartOptions.animations">
         </ngx-charts-pie-chart>
         <div *ngIf="demographicsAnalysisChartData.length > 0 && !loadingDemographics" class="donut-center-text">
-          <div class="donut-center-value">{{ getTotalCrowdPercentage() }}%</div>
+          <div class="donut-center-value">{{ totalCrowdPercentage }}%</div>
           <div class="donut-center-label">Total Crowd</div>
         </div>
         <div *ngIf="demographicsAnalysisChartData.length === 0 && !loadingDemographics" class="no-data-small">No data</div>
@@ -127,11 +127,11 @@
       <div class="demographics-legend" *ngIf="!loadingDemographics && demographicsAnalysisChartData.length > 0">
         <div class="legend-item">
           <mat-icon class="legend-icon male">male</mat-icon>
-          <span>{{ getMalePercentage() }}% Males</span>
+          <span>{{ malePercentage }}% Males</span>
         </div>
         <div class="legend-item">
           <mat-icon class="legend-icon female">female</mat-icon>
-          <span>{{ getFemalePercentage() }}% Females</span>
+          <span>{{ femalePercentage }}% Females</span>
         </div>
       </div>
     </div>
