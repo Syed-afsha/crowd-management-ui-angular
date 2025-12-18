@@ -33,21 +33,9 @@ export class ApiService {
   ) {}
 
   private createSitesCache() {
-    console.log('📤 API REQUEST: getSites', {
-      url: `${this.base}/api/sites`,
-      method: 'GET',
-      timestamp: new Date().toISOString()
-    });
-    
     return this.http.get<any[]>(`${this.base}/api/sites`).pipe(
       tap(sites => {
-        console.log('📥 API RESPONSE: /api/sites', {
-          url: `${this.base}/api/sites`,
-          status: 'success',
-          response: sites,
-          count: sites?.length || 0,
-          timestamp: new Date().toISOString()
-        });
+        // Response logged only for debugging - removed to reduce console noise
         // If no siteId is set, use the first site from the list
         // Note: SiteService notification is handled by LayoutComponent
         // to avoid circular dependencies
@@ -510,19 +498,6 @@ export class ApiService {
   }> {
     const finalPayload = this.createSharedPayload(fromUtc, toUtc);
     
-    // Log API request
-    console.log('📤 API REQUEST: getSummaryCardsBatch', {
-      url: `${this.base}/api/analytics/footfall` + ' & ' + `${this.base}/api/analytics/dwell`,
-      method: 'POST',
-      payload: finalPayload,
-      payloadFormatted: {
-        ...finalPayload,
-        fromUtcDate: new Date(finalPayload.fromUtc).toISOString(),
-        toUtcDate: new Date(finalPayload.toUtc).toISOString()
-      },
-      timestamp: new Date().toISOString()
-    });
-
     // Execute both requests in parallel using forkJoin for maximum speed
     // Each observable handles its own errors and returns null if it fails
     // forkJoin will complete successfully with null values for failed requests
@@ -530,14 +505,7 @@ export class ApiService {
       footfall: this.http.post<any>(`${this.base}/api/analytics/footfall`, finalPayload).pipe(
         timeout(this.REQUEST_TIMEOUT),
         tap(res => {
-          // Log API response with full structure
-          console.log('📥 API RESPONSE: /api/analytics/footfall', {
-            url: `${this.base}/api/analytics/footfall`,
-            status: 'success',
-            response: JSON.parse(JSON.stringify(res)), // Deep clone to show full structure
-            responseKeys: res ? Object.keys(res) : [],
-            timestamp: new Date().toISOString()
-          });
+          // Response logged only for debugging - removed to reduce console noise
           if (res?.siteId) {
             this.auth.setSiteId(res.siteId);
           }
@@ -565,14 +533,7 @@ export class ApiService {
       dwell: this.http.post<any>(`${this.base}/api/analytics/dwell`, finalPayload).pipe(
         timeout(this.REQUEST_TIMEOUT),
         tap(res => {
-          // Log API response with full structure
-          console.log('📥 API RESPONSE: /api/analytics/dwell', {
-            url: `${this.base}/api/analytics/dwell`,
-            status: 'success',
-            response: JSON.parse(JSON.stringify(res)), // Deep clone to show full structure
-            responseKeys: res ? Object.keys(res) : [],
-            timestamp: new Date().toISOString()
-          });
+          // Response logged only for debugging - removed to reduce console noise
           if (res?.siteId) {
             this.auth.setSiteId(res.siteId);
           }
@@ -599,7 +560,8 @@ export class ApiService {
     }).pipe(
       tap(results => {
         // Log combined batch response
-        console.log('📥 API RESPONSE: getSummaryCardsBatch (combined)', {
+        // Combined response logged only for debugging - removed to reduce console noise
+        // console.log('📥 API RESPONSE: getSummaryCardsBatch (combined)', {
           footfall: results.footfall,
           dwell: results.dwell,
           timestamp: new Date().toISOString()
@@ -629,19 +591,6 @@ export class ApiService {
   }> {
     const finalPayload = this.createSharedPayload(fromUtc, toUtc);
     
-    // Log API request
-    console.log('📤 API REQUEST: getChartsBatch', {
-      url: `${this.base}/api/analytics/occupancy` + ' & ' + `${this.base}/api/analytics/demographics`,
-      method: 'POST',
-      payload: finalPayload,
-      payloadFormatted: {
-        ...finalPayload,
-        fromUtcDate: new Date(finalPayload.fromUtc).toISOString(),
-        toUtcDate: new Date(finalPayload.toUtc).toISOString()
-      },
-      timestamp: new Date().toISOString()
-    });
-
     // Execute both requests in parallel using forkJoin for maximum speed
     // Each observable handles its own errors and returns null if it fails
     // forkJoin will complete successfully with null values for failed requests
@@ -649,14 +598,7 @@ export class ApiService {
       occupancy: this.http.post<any>(`${this.base}/api/analytics/occupancy`, finalPayload).pipe(
         timeout(this.REQUEST_TIMEOUT),
         tap(res => {
-          // Log API response with full structure
-          console.log('📥 API RESPONSE: /api/analytics/occupancy', {
-            url: `${this.base}/api/analytics/occupancy`,
-            status: 'success',
-            response: JSON.parse(JSON.stringify(res)), // Deep clone to show full structure
-            responseKeys: res ? Object.keys(res) : [],
-            timestamp: new Date().toISOString()
-          });
+          // Response logged only for debugging - removed to reduce console noise
         }),
         // OPTIMIZATION: Retry transient network errors
         retry({
@@ -680,14 +622,7 @@ export class ApiService {
       demographics: this.http.post<any>(`${this.base}/api/analytics/demographics`, finalPayload).pipe(
         timeout(this.REQUEST_TIMEOUT),
         tap(res => {
-          // Log API response with full structure
-          console.log('📥 API RESPONSE: /api/analytics/demographics', {
-            url: `${this.base}/api/analytics/demographics`,
-            status: 'success',
-            response: JSON.parse(JSON.stringify(res)), // Deep clone to show full structure
-            responseKeys: res ? Object.keys(res) : [],
-            timestamp: new Date().toISOString()
-          });
+          // Response logged only for debugging - removed to reduce console noise
         }),
         // OPTIMIZATION: Retry transient network errors
         retry({
@@ -711,7 +646,8 @@ export class ApiService {
     }).pipe(
       tap(results => {
         // Log combined batch response
-        console.log('📥 API RESPONSE: getChartsBatch (combined)', {
+        // Combined response logged only for debugging - removed to reduce console noise
+        // console.log('📥 API RESPONSE: getChartsBatch (combined)', {
           occupancy: results.occupancy,
           demographics: results.demographics,
           timestamp: new Date().toISOString()

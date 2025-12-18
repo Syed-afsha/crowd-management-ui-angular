@@ -265,15 +265,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     let fromUtc = Date.UTC(selectedYear, selectedMonth, selectedDay, 8, 0, 0, 0);  // 8:00 AM UTC
     let toUtc = isToday ? Math.min(Date.now(), Date.UTC(selectedYear, selectedMonth, selectedDay, 18, 0, 0, 0)) : Date.UTC(selectedYear, selectedMonth, selectedDay, 18, 0, 0, 0);  // 6:00 PM UTC or current time
     
-    // Debug: Log the date range being sent to API
-    console.log('📊 Fetching data for date range:', {
-      selectedDate: new Date(this.selectedDate).toISOString(),
-      fromUtc: new Date(fromUtc).toISOString(),
-      toUtc: new Date(toUtc).toISOString(),
-      fromUtcMs: fromUtc,
-      toUtcMs: toUtc,
-      isToday
-    });
+    // Date range calculation - logging removed to reduce console noise
     
     // Ensure valid time range
     if (fromUtc >= toUtc) {
@@ -812,7 +804,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this._dwellTimeChange = undefined;
       // Update notification service with selected date
       this.notificationService.setSelectedDate(normalizedDate);
-      console.log('📅 Date changed to:', normalizedDate.toISOString(), 'Fetching data from API...');
+      // Date change logged only for debugging - removed to reduce console noise
       this.loadDashboardData();
       this.cdr.markForCheck();
     }
