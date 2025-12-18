@@ -63,9 +63,10 @@ export class SocketService implements OnDestroy {
       socketUrl = socketUrl.replace(/\/$/, '');
     }
     
-    // Only use withCredentials when connecting directly (not through proxy)
-    // Proxy handles CORS, so credentials aren't needed
-    const useCredentials = !useProxy;
+    // Disable withCredentials to avoid CORS issues when backend uses wildcard CORS
+    // Authentication is handled via Authorization header, so credentials aren't needed
+    // withCredentials: true requires backend to specify exact origin, not wildcard '*'
+    const useCredentials = false;
     
     this.socket = io(socketUrl, {
       transports: ['polling', 'websocket'], // Try polling first (more reliable), then upgrade to websocket
@@ -77,7 +78,7 @@ export class SocketService implements OnDestroy {
       randomizationFactor: 0.5, // Add randomness to prevent thundering herd
       timeout: 20000, // 20 second connection timeout
       path: '/socket.io/', // Default socket.io path
-      withCredentials: useCredentials, // Only use credentials when not using proxy
+      withCredentials: useCredentials, // Set to false to work with wildcard CORS
       forceNew: false, // Reuse existing connection if available
       auth: {
         token: token
@@ -86,6 +87,7 @@ export class SocketService implements OnDestroy {
         Authorization: `Bearer ${token}`
       }
       // Note: extraHeaders applies to both websocket and polling transports
+      // Authentication is handled via Authorization header, not cookies
     });
 
     this.socket.on('connect', () => {
