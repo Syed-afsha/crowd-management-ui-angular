@@ -1,6 +1,17 @@
+<!-- ============================================ -->
+<!-- MAIN LAYOUT TEMPLATE -->
+<!-- This template defines the overall page structure -->
+<!-- ============================================ -->
+
 <div class="layout">
-  <!-- SIDEBAR -->
+  
+  <!-- ============================================ -->
+  <!-- SIDEBAR (Left Navigation Panel) -->
+  <!-- Contains: Logo, Navigation Menu, Logout Button -->
+  <!-- ============================================ -->
   <aside class="sidebar" [class.collapsed]="sidebarCollapsed">
+    
+    <!-- Logo and Hamburger Menu Button -->
     <div class="logo-container">
       <img src="/assets/kloudspot-logo.svg" alt="Kloudspot" class="logo-image" />
       <button class="hamburger-btn" (click)="toggleSidebar()" aria-label="Toggle sidebar">
@@ -8,7 +19,9 @@
       </button>
     </div>
 
+    <!-- Navigation Menu -->
     <nav class="nav-menu">
+      <!-- Overview Link (Dashboard) -->
       <a
         routerLink="/"
         routerLinkActive="active"
@@ -19,31 +32,44 @@
         <span class="nav-text">{{ translationOverview }}</span>
       </a>
 
+      <!-- Crowd Entries Link -->
       <a routerLink="/entries" routerLinkActive="active" class="nav-item">
         <mat-icon class="nav-icon">unfold_more</mat-icon>
         <span class="nav-text">{{ translationCrowdEntries }}</span>
       </a>
     </nav>
 
+    <!-- Logout Button -->
     <a class="logout-btn" (click)="logout()">
       <mat-icon class="logout-icon">power_settings_new</mat-icon>
       <span class="logout-text">{{ translationLogout }}</span>
     </a>
   </aside>
 
+  <!-- ============================================ -->
   <!-- MAIN CONTENT AREA -->
+  <!-- Contains: Header and Page Content -->
+  <!-- ============================================ -->
   <div class="main-wrapper" [class.full-width]="sidebarCollapsed">
+    
+    <!-- ============================================ -->
     <!-- HEADER -->
+    <!-- Contains: Page Title, Site Selector, Language Toggle, Notifications, User Profile -->
+    <!-- ============================================ -->
     <header class="header">
+      <!-- Left side of header -->
       <div class="header-left">
         <span class="page-title">Crowd Solutions</span>
 
+        <!-- Site Selector Dropdown -->
         <div class="location-select" (click)="toggleSiteDropdown()">
           <mat-icon class="location-icon">location_on</mat-icon>
           <span class="location-text">{{ selectedSite?.name || 'Select Site' }}</span>
           <mat-icon class="dropdown-icon" [class.rotated]="showSiteDropdown">expand_more</mat-icon>
           
+          <!-- Dropdown Menu (shown when showSiteDropdown is true) -->
           <div class="site-dropdown" *ngIf="showSiteDropdown" (click)="$event.stopPropagation()">
+            <!-- List of available sites -->
             <div 
               class="site-option" 
               *ngFor="let site of sites; trackBy: trackBySiteId"
@@ -55,6 +81,7 @@
                 <span class="site-location">{{ site._locationText }}</span>
               </div>
             </div>
+            <!-- Message shown when no sites are available -->
             <div class="site-option empty" *ngIf="sites.length === 0">
               <span>No sites available</span>
             </div>
@@ -62,28 +89,37 @@
         </div>
       </div>
 
+      <!-- Right side of header -->
       <div class="header-right">
+        <!-- Language Toggle (English/Arabic) -->
         <div class="lang-switch">
           <button class="lang-btn" [class.active]="currentLang === 'en'" (click)="toggleLanguage()">En</button>
           <span class="lang-separator">&nbsp;</span>
           <button class="lang-btn" [class.active]="currentLang === 'ar'" (click)="toggleLanguage()">ع</button>
         </div>
 
+        <!-- Notifications Bell -->
         <app-notification-bell></app-notification-bell>
 
+        <!-- User Profile Picture/Avatar -->
         <div class="user-profile">
+          <!-- Show image if available -->
           <img 
             *ngIf="userInfo"
             [src]="userAvatarUrl" 
             [alt]="userInfo.name || userInfo.email"
             (error)="onProfileImageError($event)"
             class="profile-avatar-image">
+          <!-- Show initials if no image -->
           <div *ngIf="!userInfo" class="profile-avatar-initials">{{ userInitials }}</div>
         </div>
       </div>
     </header>
 
+    <!-- ============================================ -->
     <!-- PAGE CONTENT -->
+    <!-- This is where the router loads different pages (dashboard, entries, etc.) -->
+    <!-- ============================================ -->
     <main class="content">
       <router-outlet></router-outlet>
     </main>

@@ -1,3 +1,13 @@
+// ============================================
+// DASHBOARD COMPONENT
+// This component displays the main dashboard with:
+// - Summary cards (Live Occupancy, Today's Footfall, Avg Dwell Time)
+// - Occupancy timeline chart
+// - Demographics charts (pie chart and timeline)
+// - Real-time updates via Socket.IO
+// - Date selection for viewing historical data
+// ============================================
+
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
@@ -25,153 +35,185 @@ import { curveCardinal } from 'd3-shape';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class DashboardComponent implements OnInit, OnDestroy {
-  loading = true;
-  loadingFootfall = false;
-  loadingDwell = false;
-  loadingOccupancy = false;
-  loadingDemographics = false;
-  liveOccupancy = 0;
-  todaysFootfall = 0;
-  avgDwellTime = 0;
-  dwellRecords = 0; // Backend provides this
-
+  
+  // ============================================
+  // COMPONENT PROPERTIES
+  // These store all the data displayed in the dashboard
+  // ============================================
+  
+  // Loading states (controls spinner visibility)
+  loading = true; // Overall loading state
+  loadingFootfall = false; // Loading state for footfall card
+  loadingDwell = false; // Loading state for dwell time card
+  loadingOccupancy = false; // Loading state for occupancy chart
+  loadingDemographics = false; // Loading state for demographics charts
+  
+  // Summary card values
+  liveOccupancy = 0; // Current number of people in the venue
+  todaysFootfall = 0; // Total number of people who entered today
+  avgDwellTime = 0; // Average time people spend in the venue (in minutes)
+  dwellRecords = 0; // Number of records used to calculate average dwell time
+  
+  // Yesterday's values (for percentage comparison)
   previousFootfall = 0;
   previousDwellTime = 0;
   previousLiveOccupancy = 0;
   
-  // Percentage change calculations
+  // Percentage change calculations (for showing "X% more/less than yesterday")
   liveOccupancyChange: { value: number; isPositive: boolean } | null = null;
   footfallChange: { value: number; isPositive: boolean } | null = null;
   dwellTimeChange: { value: number; isPositive: boolean } | null = null;
   
-  occupancyChartData: any[] = [];
-  demographicsChartData: any[] = [];
-  demographicsAnalysisChartData: any[] = [];
+  // Chart data arrays (used by ngx-charts library)
+  occupancyChartData: any[] = []; // Data for the occupancy timeline chart
+  demographicsChartData: any[] = []; // Data for demographics pie chart
+  demographicsAnalysisChartData: any[] = []; // Data for demographics timeline chart
   
-  // Timezone information from backend
+  // Timezone information from backend (used for display)
   siteTimezone: string = '';
   
   // Demographics totals for display
-  totalMaleCount = 0;
-  totalFemaleCount = 0;
+  totalMaleCount = 0; // Total male visitors
+  totalFemaleCount = 0; // Total female visitors
   
-  // Live marker properties
-  liveMarkerPosition: number | null = null; // Percentage position (0-100)
-  occupancyTimeRange: { fromUtc: number; toUtc: number } | null = null;
-  private liveMarkerUpdateInterval?: any;
+  // Live marker properties (the red line showing current time on charts)
+  liveMarkerPosition: number | null = null; // Position as percentage (0-100)
+  occupancyTimeRange: { fromUtc: number; toUtc: number } | null = null; // Time range of the chart
+  private liveMarkerUpdateInterval?: any; // Timer for updating live marker position
   
+  // Chart configuration options (for ngx-charts library)
   chartOptions = {
-    showXAxis: true,
-    showYAxis: true,
-    gradient: false,
-    showLegend: false, // Removed legend from Overall Occupancy chart
-    showXAxisLabel: true,
-    showYAxisLabel: true,
-    xAxisLabel: 'Time',
-    timeline: false, // Disable timeline for better performance
-    autoScale: true,
-    view: [800, 300] as [number, number], // Default view size - will be responsive
-    animations: false // Explicitly disable animations
+    showXAxis: true, // Show horizontal axis
+    showYAxis: true, // Show vertical axis
+    gradient: false, // No gradient fill
+    showLegend: false, // No legend for occupancy chart
+    showXAxisLabel: true, // Show label on X axis
+    showYAxisLabel: true, // Show label on Y axis
+    xAxisLabel: 'Time', // Label for X axis
+    timeline: false, // Disabled for better performance
+    autoScale: true, // Automatically adjust scale
+    view: [800, 300] as [number, number], // Chart size [width, height] - will be responsive
+    animations: false // Disabled for better performance
   };
+  
   demographicsChartOptions = {
     showXAxis: true,
     showYAxis: true,
     gradient: false,
-    showLegend: true,
+    showLegend: true, // Show legend for demographics chart
     showXAxisLabel: true,
     showYAxisLabel: true,
     xAxisLabel: 'Time',
     timeline: false,
     autoScale: true,
-    view: [600, 300] as [number, number], // Default view size
+    view: [600, 300] as [number, number],
     animations: false
   };
+  
   pieChartOptions = {
-    showLegend: true,
-    view: [340, 240] as [number, number], // Slightly increased size
-    animations: false // Explicitly disable animations
+    showLegend: true, // Show legend for pie chart
+    view: [340, 240] as [number, number], // Pie chart size
+    animations: false
   };
 
-  curve = curveCardinal.tension(0.5); // Smooth wavy curves
+  // Curve style for charts (makes lines smooth/wavy)
+  curve = curveCardinal.tension(0.5);
 
+  // Selected date (for viewing historical data)
+  // Defaults to today at midnight UTC
   selectedDate: Date = (() => {
-    // Normalize initial date to midnight UTC
     const today = new Date();
     return new Date(Date.UTC(
       today.getUTCFullYear(),
       today.getUTCMonth(),
       today.getUTCDate(),
-      0, 0, 0, 0
+      0, 0, 0, 0 // Midnight UTC
     ));
   })();
   
-  // Pre-computed display values (performance optimization)
-  dateDisplayText = '';
-  footfallDisplayValue = '';
-  dwellTimeDisplayValue = '';
-  totalCrowdPercentage = 0;
-  malePercentage = 0;
-  femalePercentage = 0;
+  // Pre-computed display values (formatted for display in UI)
+  dateDisplayText = ''; // Formatted date string (e.g., "Today" or "Dec 18, 2025")
+  footfallDisplayValue = ''; // Formatted footfall number (e.g., "1,234")
+  dwellTimeDisplayValue = ''; // Formatted dwell time (e.g., "23min 8sec")
+  totalCrowdPercentage = 0; // Total crowd percentage for pie chart
+  malePercentage = 0; // Male percentage for demographics
+  femalePercentage = 0; // Female percentage for demographics
 
-  private socketSubscriptions: Subscription[] = [];
-  private httpSubscriptions: Subscription[] = [];
-  private siteChangeSubscription?: Subscription;
-  private footfallRefreshPending = false;
+  // Subscription management (for cleanup to prevent memory leaks)
+  private socketSubscriptions: Subscription[] = []; // Real-time socket subscriptions
+  private httpSubscriptions: Subscription[] = []; // HTTP API subscriptions
+  private siteChangeSubscription?: Subscription; // Subscription for site changes
+  private footfallRefreshPending = false; // Flag to prevent duplicate refresh requests
   
-  // OPTIMIZATION: Use RxJS Subject for better footfall refresh debouncing
+  // RxJS Subject for debouncing footfall refresh (prevents too many API calls)
   private footfallRefreshTrigger$ = new Subject<void>();
   private footfallRefreshSubscription?: Subscription;
   
-  // Window resize handler reference for cleanup
+  // Window resize handler (for responsive charts)
   private resizeHandler = () => this.updateChartViewDimensions();
 
+  // ============================================
+  // CONSTRUCTOR
+  // Angular injects these services automatically
+  // ============================================
   constructor(
-    private api: ApiService, 
-    private socket: SocketService,
-    private siteService: SiteService,
-    private notificationService: NotificationService,
-    private auth: AuthService,
-    private cdr: ChangeDetectorRef
+    private api: ApiService, // Handles API calls to backend
+    private socket: SocketService, // Handles real-time updates via WebSocket
+    private siteService: SiteService, // Manages site selection changes
+    private notificationService: NotificationService, // Handles notifications/alerts
+    private auth: AuthService, // Handles authentication
+    private cdr: ChangeDetectorRef // Used to manually trigger UI updates
   ) {}
 
+  // ============================================
+  // INITIALIZATION
+  // Runs when component is first created
+  // ============================================
   ngOnInit(): void {
-    // Initialize notification service with today's date
+    // Step 1: Initialize notification service with today's date
     this.notificationService.setSelectedDate(this.selectedDate);
     
-    // Calculate responsive chart view dimensions
+    // Step 2: Calculate chart sizes based on window size (responsive)
     this.updateChartViewDimensions();
     
-    // Set up site change listener (separate from HTTP subscriptions to prevent accidental unsubscription)
+    // Step 3: Listen for site changes (when user selects different site)
+    // When site changes, we need to reload all data for the new site
     this.siteChangeSubscription = this.siteService.siteChange$.subscribe(() => {
-      // Clear caches and reload data when site changes
+      // Clear cached data (ensures fresh data for new site)
       this.api.clearCaches();
-      // Reset comparison data
+      
+      // Reset yesterday's comparison data (will be recalculated for new site)
       this.liveOccupancyChange = null;
       this.footfallChange = null;
       this.dwellTimeChange = null;
       this.previousFootfall = 0;
       this.previousDwellTime = 0;
       this.previousLiveOccupancy = 0;
+      
+      // Update date display and reload dashboard data
       this.updateDateDisplayText();
       this.loadDashboardData();
     });
     
-    // Load data immediately if site already exists (for navigation back to dashboard)
-    // Otherwise wait for siteChange$ to emit (initial load after login)
+    // Step 4: Load data immediately if we already have a site selected
+    // (This handles the case where user navigates back to dashboard)
+    // Otherwise, wait for siteChange$ to emit (initial load after login)
     if (this.auth.getSiteId()) {
-        this.loadDashboardData();
-      }
-    // If no site exists, we wait for siteChange$ to emit (handled by layout component)
+      this.loadDashboardData();
+    }
     
+    // Step 5: Set up real-time socket listeners (for live updates)
     this.setupSocketListeners();
+    
+    // Step 6: Set up footfall refresh mechanism (debounced to prevent spam)
     this.setupFootfallRefresh();
     
-    // Update chart dimensions on window resize
+    // Step 7: Make charts responsive (update size when window resizes)
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', this.resizeHandler);
     }
     
-    // Start live marker updates if viewing today
+    // Step 8: Start updating live marker (red line) if viewing today's data
     if (this.isSelectedDateToday()) {
       this.startLiveMarkerUpdates();
     }
@@ -235,7 +277,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
   }
 
+  // ============================================
+  // CLEANUP
+  // Runs when component is destroyed
+  // Unsubscribes from all observables to prevent memory leaks
+  // ============================================
   ngOnDestroy(): void {
+    // Unsubscribe from all socket (real-time) connections
     this.socketSubscriptions.forEach(sub => sub.unsubscribe());
     this.socketSubscriptions = [];
     
@@ -243,23 +291,43 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (typeof window !== 'undefined') {
       window.removeEventListener('resize', this.resizeHandler);
     }
+    
+    // Unsubscribe from all HTTP API calls
     this.httpSubscriptions.forEach(sub => sub.unsubscribe());
     this.httpSubscriptions = [];
+    
+    // Unsubscribe from site change listener
     if (this.siteChangeSubscription) {
       this.siteChangeSubscription.unsubscribe();
     }
+    
+    // Unsubscribe from footfall refresh mechanism
     if (this.footfallRefreshSubscription) {
       this.footfallRefreshSubscription.unsubscribe();
     }
-    // Complete the subject to prevent memory leaks
+    
+    // Complete the RxJS subject (prevents memory leaks)
     this.footfallRefreshTrigger$.complete();
     
-    // Stop live marker updates
+    // Stop the live marker update timer
     this.stopLiveMarkerUpdates();
   }
 
+  // ============================================
+  // LOAD DASHBOARD DATA
+  // This is the main method that loads all dashboard data
+  // It's called when:
+  // 1. Component first loads
+  // 2. User changes site
+  // 3. User changes date
+  // 
+  // Data loading happens in two phases:
+  // Phase 1: Summary cards (footfall, dwell time) - loads first
+  // Phase 2: Charts (occupancy, demographics) - loads after Phase 1
+  // ============================================
   private loadDashboardData(): void {
-    // Unsubscribe from any pending HTTP requests to prevent race conditions
+    // Step 1: Cancel any pending HTTP requests to prevent race conditions
+    // (This prevents old data from overwriting new data)
     this.httpSubscriptions.forEach(sub => {
       if (sub && !sub.closed) {
         sub.unsubscribe();
@@ -267,13 +335,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
     this.httpSubscriptions = [];
     
-    // Set loading flags for individual sections
-    // Don't reset chart data here - let it update when new data arrives to avoid flicker
+    // Step 2: Set loading flags (show spinners in UI)
+    // Note: We don't clear chart data here - let it update when new data arrives
+    // This prevents flickering/blank charts during reload
     this.loadingFootfall = true;
     this.loadingDwell = true;
     this.loadingOccupancy = true;
     this.loadingDemographics = true;
-    this.loading = false;
+    this.loading = false; // Overall loading is false (individual sections show their own spinners)
     this.cdr.markForCheck();
     
     // Calculate date range for API
