@@ -8,6 +8,10 @@ A real-time web application for monitoring crowd occupancy, footfall, demographi
 
 Experience the full application with real-time updates, interactive charts, and all features live on Netlify.
 
+**Test Credentials:**
+- **Email/Username:** `test@test.com`
+- **Password:** `1234567890`
+
 ## 🚀 Features
 
 - **Live Dashboard** - Real-time occupancy tracking with live updates via Socket.IO
