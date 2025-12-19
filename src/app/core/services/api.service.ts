@@ -721,12 +721,4 @@ export class ApiService {
   getCancelSubject(): Subject<void> {
     return this.cancelPendingRequests$;
   }
-
-  startSimulation() {
-    return this.http.get<any>(`${this.base}/api/sim/start`);
-  }
-
-  stopSimulation() {
-    return this.http.get<any>(`${this.base}/api/sim/stop`);
-  }
 }
