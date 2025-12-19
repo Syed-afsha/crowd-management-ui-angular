@@ -728,17 +728,24 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private processDemographicsAnalysisData(data: any): void {
-    // Backend API structure: { siteId, fromUtc, toUtc, timezone, buckets: [{ utc, local, male, female }] }
-    // Aggregate totals from buckets (backend doesn't provide pre-calculated totals)
+    // Backend API structure: { siteId, fromUtc, toUtc, timezone, buckets: [{ utc, local, male, female }], totalMale?, totalFemale? }
+    // Prefer backend-provided totals if available, otherwise aggregate from buckets
     const buckets = data?.buckets || [];
     
-    // Optimized: Direct aggregation from verified API structure
+    // Check if backend provides pre-calculated totals
     let totalMale = 0;
     let totalFemale = 0;
     
-    for (const item of buckets) {
-      totalMale += Number(item.male) || 0;    // API always provides 'male' field
-      totalFemale += Number(item.female) || 0; // API always provides 'female' field
+    if (data?.totalMale !== undefined && data?.totalFemale !== undefined) {
+      // Backend provides pre-calculated totals - use them directly
+      totalMale = Number(data.totalMale) || 0;
+      totalFemale = Number(data.totalFemale) || 0;
+    } else {
+      // Backend doesn't provide totals - aggregate from buckets (fallback)
+      for (const item of buckets) {
+        totalMale += Number(item.male) || 0;    // API always provides 'male' field
+        totalFemale += Number(item.female) || 0; // API always provides 'female' field
+      }
     }
     
     // Store totals for display
@@ -750,7 +757,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       { name: 'Female', value: totalFemale }
     ];
     
-    // Calculate percentages from aggregated totals (minimal calculation for display)
+    // Calculate percentages from totals (minimal calculation for display)
     this.updateDemographicsPercentages();
     this.cdr.markForCheck();
   }
