@@ -1,5 +1,5 @@
 .entries {
-  padding: 30px;
+  padding: 24px;
   background: #f4f7fa;
   min-height: 100vh;
   color: #1f2937;
@@ -9,7 +9,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .section-header h2 {
@@ -47,7 +47,7 @@ thead {
 
 th {
   padding: 16px 24px;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #1f2937;
   text-transform: uppercase;
@@ -56,7 +56,7 @@ th {
 
 td {
   padding: 16px 24px;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   color: #6b7280;
   border-bottom: 1px solid #e5e7eb;
 }
@@ -122,7 +122,7 @@ tbody tr {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 12px;
   margin: 24px 0;
   flex-wrap: wrap;
 }
@@ -132,9 +132,9 @@ tbody tr {
   background: white;
   color: #1f2937;
   border: 1px solid #e5e7eb;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 0.875rem;
   transition: all 0.2s;
 
   &:hover:not(:disabled) {
@@ -150,7 +150,7 @@ tbody tr {
 
 .page-numbers {
   display: flex;
-  gap: 4px;
+  gap: 8px;
 }
 
 .page-btn {
@@ -160,9 +160,9 @@ tbody tr {
   background: white;
   color: #1f2937;
   border: 1px solid #e5e7eb;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 0.875rem;
   transition: all 0.2s;
 
   &:hover {
@@ -194,6 +194,6 @@ tbody tr {
 .pagination-info {
   text-align: center;
   color: #6b7280;
-  font-size: 14px;
+  font-size: 0.875rem;
   margin-top: 16px;
 }

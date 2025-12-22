@@ -24,7 +24,7 @@
         class="alert-card"
         [class]="'priority-' + alert._priority?.toLowerCase()">
         <div class="alert-date">{{ alert._formattedDate }}</div>
-        <div class="alert-message">{{ alert.message }}</div>
+        <div class="alert-message">{{ alert._displayText }}</div>
         <div class="alert-footer">
           <div class="alert-location">
             <mat-icon class="location-icon">location_on</mat-icon>

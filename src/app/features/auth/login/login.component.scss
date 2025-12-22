@@ -44,7 +44,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 80px 100px;
+  padding: 80px 120px;
   position: relative;
   z-index: 1;
   box-sizing: border-box;
@@ -72,14 +72,14 @@
   background: #ffffff;
   border-radius: 12px;
   overflow: hidden; // Keep hidden for rounded corners
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   flex-shrink: 0;
 }
 
 /* HEADER */
 .login-header {
   background: linear-gradient(135deg, #0a5f5c, #0f8f8b);
-  padding: 40px 24px;
+  padding: 40px 32px;
   text-align: center;
   position: relative;
   overflow: hidden;
@@ -120,7 +120,7 @@
 
 /* FORM */
 .login-card form {
-  padding: 36px;
+  padding: 32px;
   position: relative;
   overflow: visible; // Allow eye icon to be visible
 }
@@ -135,11 +135,11 @@
 
 .login-card input {
   width: 100%;
-  padding: 14px 16px;
+  padding: 12px 16px;
   margin: 0 0 20px 0;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 15px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.9375rem;
   box-sizing: border-box;
   line-height: 1.5;
   height: 48px; // Fixed height for consistent alignment
@@ -158,7 +158,8 @@
 
 .login-card input:focus {
   outline: none;
-  border-color: #009688;
+  border-color: #0a5f5c;
+  box-shadow: 0 0 0 3px rgba(10, 95, 92, 0.1);
 }
 
 /* PASSWORD */
@@ -171,7 +172,7 @@
 
 .password-field .eye {
   position: absolute;
-  right: 10px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);
   background: transparent;
@@ -188,7 +189,7 @@
   width: 32px;
   height: 32px;
   min-width: 32px;
-  border-radius: 4px;
+  border-radius: 6px;
   pointer-events: auto; // Ensure it's clickable
   outline: none; // Remove focus outline
 }
@@ -217,15 +218,20 @@
 /* BUTTON */
 .login-card button[type='submit'] {
   width: 100%;
-  padding: 14px;
-  background: #009688;
+  padding: 12px 16px;
+  background: #0a5f5c;
   color: white;
   border: none;
-  border-radius: 6px;
-  font-size: 16px;
+  border-radius: 8px;
+  font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
   margin-top: 8px;
+  transition: all 0.2s;
+  
+  &:hover:not(:disabled) {
+    background: #0f8f8b;
+  }
 }
 
 .login-card button[type='submit']:disabled {

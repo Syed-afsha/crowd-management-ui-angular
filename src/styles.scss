@@ -1,9 +1,51 @@
 /* Angular Material Theme */
 @import '@angular/material/prebuilt-themes/indigo-pink.css';
 
+/* Bari Sans Font Face - Add font files to src/assets/fonts/ folder */
+@font-face {
+  font-family: 'Bari Sans';
+  src: url('/assets/fonts/BariSans-Regular.woff2') format('woff2'),
+       url('/assets/fonts/BariSans-Regular.woff') format('woff'),
+       url('/assets/fonts/BariSans-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Bari Sans';
+  src: url('/assets/fonts/BariSans-Medium.woff2') format('woff2'),
+       url('/assets/fonts/BariSans-Medium.woff') format('woff'),
+       url('/assets/fonts/BariSans-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Bari Sans';
+  src: url('/assets/fonts/BariSans-SemiBold.woff2') format('woff2'),
+       url('/assets/fonts/BariSans-SemiBold.woff') format('woff'),
+       url('/assets/fonts/BariSans-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Bari Sans';
+  src: url('/assets/fonts/BariSans-Bold.woff2') format('woff2'),
+       url('/assets/fonts/BariSans-Bold.woff') format('woff'),
+       url('/assets/fonts/BariSans-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Global Reset for Full Screen */
 * {
   box-sizing: border-box;
+  font-family: 'Bari Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 html, body {
@@ -12,6 +54,7 @@ html, body {
   width: 100%;
   height: 100%;
   overflow-x: hidden;
+  font-family: 'Bari Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 /* Material Icons Font Fallback */

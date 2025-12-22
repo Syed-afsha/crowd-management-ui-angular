@@ -47,18 +47,7 @@ export class EntriesComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // Initialize notification service with today's date (normalized like dashboard)
-    // Normalize date to remove time component - use local date methods then convert to UTC
-    const today = new Date();
-    const normalizedToday = new Date(Date.UTC(
-      today.getFullYear(),  // Use local year
-      today.getMonth(),     // Use local month
-      today.getDate(),      // Use local date
-      0, 0, 0, 0
-    ));
-    this.notificationService.setSelectedDate(normalizedToday);
-    
-    // Set current site ID for notification filtering
+    // Initialize notification service with current site ID for filtering
     const currentSiteId = this.auth.getSiteId();
     if (currentSiteId) {
       this.notificationService.setCurrentSiteId(currentSiteId);
@@ -71,7 +60,7 @@ export class EntriesComponent implements OnInit, OnDestroy {
     
     // Listen for site changes and reload entries immediately
     this.siteChangeSubscription = this.siteService.siteChange$.subscribe((siteId: string) => {
-      // Update notification service with new site ID
+      // Update notification service with new site ID for filtering
       this.notificationService.setCurrentSiteId(siteId);
       
       // Immediately show loading state
@@ -118,10 +107,10 @@ export class EntriesComponent implements OnInit, OnDestroy {
         const rawRecords = res.records || res.data || [];
         this.records = rawRecords.map((record: any) => this.preprocessRecord(record));
         
-        // Store API total records
-        const apiTotalRecords = res.totalRecords || res.total || this.records.length;
+        // Store API total records (backend must provide totalRecords or total)
+        const apiTotalRecords = res.totalRecords || res.total || 0;
         this.totalRecords = apiTotalRecords;
-        this.totalPages = Math.ceil(this.totalRecords / this.pageSize);
+        this.totalPages = Math.ceil(this.totalRecords / this.pageSize); // Pagination calculation (UI only)
         
         // Update page numbers and pagination range
         this.updatePageNumbers();
@@ -425,8 +414,8 @@ export class EntriesComponent implements OnInit, OnDestroy {
       raw: alertData
     };
 
-    // Always add alerts on entries page (entries page shows today's data)
-    // The notification service will filter by date and site
+    // Backend handles all filtering (by date, site, etc.)
+    // Just add all alerts that backend sends us
     this.notificationService.addAlert(alert);
   }
 }

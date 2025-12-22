@@ -172,15 +172,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // Runs when component is first created
   // ============================================
   ngOnInit(): void {
-    // Step 1: Initialize notification service with today's date
+    // Step 1: Initialize notification service with today's date and current site ID
     this.notificationService.setSelectedDate(this.selectedDate);
+    const currentSiteId = this.auth.getSiteId();
+    if (currentSiteId) {
+      this.notificationService.setCurrentSiteId(currentSiteId);
+    }
     
     // Step 2: Calculate chart sizes based on window size (responsive)
     this.updateChartViewDimensions();
     
     // Step 3: Listen for site changes (when user selects different site)
     // When site changes, we need to reload all data for the new site
-    this.siteChangeSubscription = this.siteService.siteChange$.subscribe(() => {
+    this.siteChangeSubscription = this.siteService.siteChange$.subscribe((siteId: string) => {
+      // Update notification service with new site ID for filtering
+      this.notificationService.setCurrentSiteId(siteId);
+      
       // Clear cached data (ensures fresh data for new site)
       this.api.clearCaches();
       
@@ -728,11 +735,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private processDemographicsAnalysisData(data: any): void {
-    // Backend API structure: { siteId, fromUtc, toUtc, timezone, buckets: [{ utc, local, male, female }], totalMale?, totalFemale? }
-    // Prefer backend-provided totals if available, otherwise aggregate from buckets
-    const buckets = data?.buckets || [];
-    
-    // Check if backend provides pre-calculated totals
+    // Backend API structure: { siteId, fromUtc, toUtc, timezone, buckets: [{ utc, local, male, female }], totalMale, totalFemale }
+    // Prefer backend-provided totals, but fallback to aggregating from buckets if totals are missing
+    // NOTE: This aggregation is temporary - backend should always provide totalMale and totalFemale
     let totalMale = 0;
     let totalFemale = 0;
     
@@ -741,10 +746,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
       totalMale = Number(data.totalMale) || 0;
       totalFemale = Number(data.totalFemale) || 0;
     } else {
-      // Backend doesn't provide totals - aggregate from buckets (fallback)
+      // Backend doesn't provide totals - aggregate from buckets as fallback (temporary until backend provides totals)
+      const buckets = data?.buckets || [];
       for (const item of buckets) {
-        totalMale += Number(item.male) || 0;    // API always provides 'male' field
-        totalFemale += Number(item.female) || 0; // API always provides 'female' field
+        totalMale += Number(item.male) || 0;
+        totalFemale += Number(item.female) || 0;
       }
     }
     
@@ -917,32 +923,23 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // Store normalized actionType for use in notification bell
     const normalizedActionType = isEntry ? 'entry' : 'exit';
 
+    // Extract siteId from alert data or use current site ID
+    const siteId = alertData.siteId || alertData.site || this.auth.getSiteId() || null;
+
     const alert: Alert = {
       actionType: normalizedActionType,
       zone,
       site,
+      siteId: siteId || undefined,
       severity,
       timestamp,
       message: message,
       raw: alertData
     };
 
-    // Only add notifications if selected date is today
-    // Notifications are real-time and should only appear for today
-    const isToday = this.isSelectedDateToday();
-    console.log('🔔 Alert received:', {
-      message: alert.message,
-      isSelectedDateToday: isToday,
-      selectedDate: this.selectedDate.toISOString(),
-      currentDate: new Date().toISOString()
-    });
-    
-    if (isToday) {
-      this.notificationService.addAlert(alert);
-      console.log('✅ Alert added to notifications');
-    } else {
-      console.warn('⚠️ Alert NOT added - selected date is not today');
-    }
+    // Backend handles all filtering (by date, site, etc.)
+    // Just add all alerts that backend sends us
+    this.notificationService.addAlert(alert);
 
     if (severity === 'critical') {
       console.warn('⚠️ Critical alert received:', alert.message);
@@ -1174,8 +1171,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.previousFootfall = 0;
       this.previousDwellTime = 0;
       this.previousLiveOccupancy = 0;
-      // Update notification service with selected date
-      this.notificationService.setSelectedDate(normalizedDate);
+      // Backend handles notification filtering by date, no need to update notification service
       // Date change logged only for debugging - removed to reduce console noise
       
       // Recalculate live marker for new date

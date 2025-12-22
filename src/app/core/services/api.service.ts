@@ -1,14 +1,12 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, forkJoin, tap, catchError, of, shareReplay, timeout, Subject, retry, delay } from 'rxjs';
+import { Observable, forkJoin, tap, catchError, of, shareReplay, timeout, retry, delay } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private base = environment.apiUrl;
-  private readonly TWELVE_HOURS_MS = 2 * 60 * 60 * 1000; // Reduced to 2 hours for ultra-fast loading (1-2 seconds target)
-  private readonly SIX_HOURS_MS = 1 * 60 * 60 * 1000; // Reduced to 1 hour for entry-exit (faster queries)
   private readonly REQUEST_TIMEOUT = 15000; // 15 seconds timeout (balanced: allows backend processing time while still detecting failures)
   // Cache sites API response to avoid repeated calls
   private sitesCache$?: ReturnType<typeof this.createSitesCache>;
@@ -23,9 +21,6 @@ export class ApiService {
   // OPTIMIZATION: Cache date calculations for current day to avoid repeated Date object creation
   private cachedDayPayload: { day: number; fromUtc: number; toUtc: number } | null = null;
   private readonly DAY_MS = 24 * 60 * 60 * 1000;
-  
-  // OPTIMIZATION: Subject for canceling pending requests when site changes
-  private cancelPendingRequests$ = new Subject<void>();
 
   constructor(
     private http: HttpClient,
@@ -129,8 +124,6 @@ export class ApiService {
     const payload = this.payload();
     return this.http.post<any>(`${this.base}/api/analytics/footfall`, payload).pipe(
       timeout(this.REQUEST_TIMEOUT),
-      // OPTIMIZATION: Cancel request if site changes or cache is cleared
-      // takeUntil(this.cancelPendingRequests$), // Uncomment if needed for aggressive cancellation
       tap(res => {
         if (res?.siteId) {
           this.auth.setSiteId(res.siteId);
@@ -652,57 +645,7 @@ export class ApiService {
     );
   }
 
-  /**
-   * OPTIMIZED: Batch load all analytics endpoints with shared parameters
-   * This reduces redundant payload creation and allows parallel loading with shared date range
-   * Use this when you need all 4 endpoints (footfall, dwell, occupancy, demographics)
-   * @param fromUtc Start time in UTC milliseconds
-   * @param toUtc End time in UTC milliseconds
-   * @returns Observable with all analytics data
-   */
-  getAnalyticsBatch(fromUtc?: number, toUtc?: number): Observable<{
-    footfall: any;
-    dwell: any;
-    occupancy: any;
-    demographics: any;
-  }> {
-    const finalPayload = this.createSharedPayload(fromUtc, toUtc);
-
-    // Execute all requests in parallel using forkJoin for maximum speed
-    return forkJoin({
-      footfall: this.http.post<any>(`${this.base}/api/analytics/footfall`, finalPayload).pipe(
-        timeout(this.REQUEST_TIMEOUT),
-        tap(res => {
-          if (res?.siteId) {
-            this.auth.setSiteId(res.siteId);
-          }
-        }),
-        catchError(err => this.handleApiError(err, 'Footfall', `${this.base}/api/analytics/footfall`))
-      ),
-      dwell: this.http.post<any>(`${this.base}/api/analytics/dwell`, finalPayload).pipe(
-        timeout(this.REQUEST_TIMEOUT),
-        tap(res => {
-          if (res?.siteId) {
-            this.auth.setSiteId(res.siteId);
-          }
-        }),
-        catchError(err => this.handleApiError(err, 'Dwell', `${this.base}/api/analytics/dwell`))
-      ),
-      occupancy: this.http.post<any>(`${this.base}/api/analytics/occupancy`, finalPayload).pipe(
-        timeout(this.REQUEST_TIMEOUT),
-        catchError(err => this.handleApiError(err, 'Occupancy', `${this.base}/api/analytics/occupancy`))
-      ),
-      demographics: this.http.post<any>(`${this.base}/api/analytics/demographics`, finalPayload).pipe(
-        timeout(this.REQUEST_TIMEOUT),
-        catchError(err => this.handleApiError(err, 'Demographics', `${this.base}/api/analytics/demographics`))
-      )
-    });
-  }
-
   clearCaches(): void {
-    // Cancel any pending requests
-    this.cancelPendingRequests$.next();
-    
     // Clear all caches
     this.footfallCache$ = undefined;
     this.dwellCache$ = undefined;
@@ -714,11 +657,4 @@ export class ApiService {
     this.cachedDayPayload = null;
   }
   
-  /**
-   * OPTIMIZATION: Get cancel subject for request cancellation
-   * Use with takeUntil() operator to cancel requests when needed
-   */
-  getCancelSubject(): Subject<void> {
-    return this.cancelPendingRequests$;
-  }
 }

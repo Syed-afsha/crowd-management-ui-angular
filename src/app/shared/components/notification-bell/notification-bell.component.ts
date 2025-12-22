@@ -14,13 +14,11 @@ import { Subscription } from 'rxjs';
 })
 export class NotificationBellComponent implements OnInit, OnDestroy {
   showDropdown = false;
-  alerts: (Alert & { _formattedTime?: string; _formattedDate?: string; _priority?: string })[] = [];
+  alerts: (Alert & { _formattedDate?: string; _priority?: string; _displayText?: string })[] = [];
   unreadCount = 0;
   private subscription?: Subscription;
-  // Cache for formatted times to avoid recalculating on every change detection
-  private timeCache = new Map<string, string>();
+  // Cache for formatted dates to avoid recalculating on every change detection
   private dateCache = new Map<string, string>();
-  private cacheTimeout = 60000; // Cache for 1 minute
 
   constructor(
     public notificationService: NotificationService,
@@ -28,29 +26,28 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // Subscribe to alert changes
+    // Subscribe to alert changes (backend handles all filtering)
     this.subscription = this.notificationService.alerts$.subscribe(() => {
-      // Use filtered alerts based on selected date and pre-process them
-      const rawAlerts = this.notificationService.getFilteredAlerts();
+      const rawAlerts = this.notificationService.getAlerts();
       this.alerts = rawAlerts.map(alert => ({
         ...alert,
-        _formattedTime: this.formatAlertTime(alert.timestamp),
         _formattedDate: this.formatAlertDate(alert.timestamp),
-        _priority: this.getPriorityLabel(alert.severity)
+        _priority: this.getPriorityLabel(alert.severity),
+        _displayText: this.formatDisplayText(alert)
       }));
-      this.unreadCount = this.notificationService.getFilteredUnreadCount();
+      this.unreadCount = this.notificationService.getUnreadCount();
       this.cdr.markForCheck();
     });
     
-    // Initialize with filtered alerts and pre-process them
-    const rawAlerts = this.notificationService.getFilteredAlerts();
+    // Initialize with alerts and pre-process them
+    const rawAlerts = this.notificationService.getAlerts();
     this.alerts = rawAlerts.map(alert => ({
       ...alert,
-      _formattedTime: this.formatAlertTime(alert.timestamp),
       _formattedDate: this.formatAlertDate(alert.timestamp),
-      _priority: this.getPriorityLabel(alert.severity)
+      _priority: this.getPriorityLabel(alert.severity),
+      _displayText: this.formatDisplayText(alert)
     }));
-    this.unreadCount = this.notificationService.getFilteredUnreadCount();
+    this.unreadCount = this.notificationService.getUnreadCount();
     this.cdr.markForCheck();
   }
 
@@ -58,7 +55,6 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
     if (this.subscription) {
       this.subscription.unsubscribe();
     }
-    this.timeCache.clear();
     this.dateCache.clear();
   }
 
@@ -70,52 +66,6 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   closeDropdown(): void {
     this.showDropdown = false;
     this.cdr.markForCheck();
-  }
-
-  formatAlertTime(timestamp: number | string): string {
-    const cacheKey = String(timestamp);
-    const cached = this.timeCache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    try {
-      const date = new Date(typeof timestamp === 'string' ? timestamp : timestamp);
-      if (isNaN(date.getTime())) {
-        const result = 'Invalid time';
-        this.timeCache.set(cacheKey, result);
-        return result;
-      }
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffSecs = Math.floor(diffMs / 1000);
-      const diffMins = Math.floor(diffSecs / 60);
-
-      let result: string;
-      if (diffSecs < 10) {
-        result = 'Just now';
-      } else if (diffSecs < 60) {
-        result = `${diffSecs}s ago`;
-      } else if (diffMins < 60) {
-        result = `${diffMins}m ago`;
-      } else {
-        result = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-      }
-      
-      this.timeCache.set(cacheKey, result);
-      // Clear cache after timeout to refresh relative times
-      setTimeout(() => this.timeCache.delete(cacheKey), this.cacheTimeout);
-      return result;
-    } catch (err) {
-      console.error('❌ NotificationBell: Error formatting alert time:', {
-        error: err,
-        timestamp: timestamp,
-        timestampType: new Date().toISOString()
-      });
-      const result = 'Invalid time';
-      this.timeCache.set(cacheKey, result);
-      return result;
-    }
   }
 
   formatAlertDate(timestamp: number | string): string {
@@ -168,6 +118,39 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
     }
   }
 
+  formatDisplayText(alert: Alert): string {
+    // Extract person name from message or raw data
+    // Message format: "John Doe entered Tokyo Station" or "John Doe exited Tokyo Station"
+    let personName = '';
+    
+    // Try to get person name from raw data first
+    if (alert.raw?.personName) {
+      personName = alert.raw.personName;
+    } else if (alert.raw?.name) {
+      personName = alert.raw.name;
+    } else {
+      // Extract name from message (format: "Name entered/exited Zone")
+      const message = alert.message || '';
+      // Match pattern: "Name entered" or "Name exited"
+      const nameMatch = message.match(/^(.+?)\s+(entered|exited)/i);
+      if (nameMatch && nameMatch[1]) {
+        personName = nameMatch[1].trim();
+      }
+    }
+    
+    // Get action type (entry or exit)
+    const actionType = alert.actionType?.toLowerCase() || '';
+    const isEntry = actionType === 'entry' || actionType === 'enter';
+    const actionText = isEntry ? 'entered' : 'exited';
+    
+    // Return formatted text: "Name entered" or "Name exited"
+    if (personName) {
+      return `${personName} ${actionText}`;
+    } else {
+      // Fallback if no name found
+      return isEntry ? 'Entry' : 'Exit';
+    }
+  }
 
   trackByAlertId(index: number, alert: Alert): string {
     return alert.raw?.eventId || alert.timestamp?.toString() || index.toString();

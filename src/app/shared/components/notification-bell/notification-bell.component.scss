@@ -64,8 +64,8 @@
   width: 367px;
   height: 100vh;
   max-height: 100vh;
-  background-color: #ffffff;
-  background: #ffffff;
+  background-color: #ffffff !important; // Ensure solid white background
+  background: #ffffff !important; // Ensure solid white background
   border-radius: 16px 0 0 16px;
   border-left: 1px solid #e5e7eb;
   box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
@@ -74,7 +74,7 @@
   flex-direction: column;
   overflow: hidden;
   pointer-events: auto;
-  opacity: 1;
+  opacity: 1 !important; // Ensure fully opaque
 
   .dropdown-header {
     padding: 20px 24px;
@@ -82,7 +82,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #ffffff;
+    background: #ffffff !important; // Ensure solid background
+    background-color: #ffffff !important; // Ensure solid background
     flex-shrink: 0;
 
     h3 {
@@ -124,7 +125,8 @@
     overflow-y: auto;
     overflow-x: hidden;
     padding: 16px;
-    background: #ffffff;
+    background: #ffffff !important; // Ensure solid background
+    background-color: #ffffff !important; // Ensure solid background
     
     &::-webkit-scrollbar {
       width: 6px;
@@ -152,7 +154,8 @@
   }
 
   .alert-card {
-    background: #ffffff;
+    background: #ffffff !important; // Ensure solid background for cards
+    background-color: #ffffff !important; // Ensure solid background for cards
     border: 1px solid #e5e7eb;
     border-radius: 8px;
     padding: 16px;
