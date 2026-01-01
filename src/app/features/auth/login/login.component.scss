@@ -1,7 +1,7 @@
 :host {
   display: block;
   min-height: 100vh;
-  background-image: url('/assets/images/login-bg.png');
+  background-image: url('/assets/images/office-background.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -30,12 +30,12 @@
     bottom: -10px;
     width: calc(100% + 20px);
     height: calc(100% + 20px);
-    background-image: url('/assets/login-bg.jpg');
+    background-image: url('/assets/images/office-background.png');
     background-position: center center;
     background-repeat: no-repeat;
     background-size: cover;
     background-attachment: fixed;
-    filter: blur(8px);
+    filter: none;
     z-index: -1;
     transform: scale(1.05); // Slight scale to prevent edge gaps
   }
@@ -288,27 +288,16 @@
 :host {
   display: block;
   min-height: 100vh;
-  background-image: url('/assets/images/login-bg.png');
+  background-image: url('/assets/images/office-background.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
 
 .login-container {
-  background: transparent !important;
-}
-:host {
-  display: block;
+  background-image: url('/assets/images/office-background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   min-height: 100vh;
-  background:
-    linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
-    url('/assets/images/login-bg.png');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
 }
-
-.login-container {
-  background: transparent !important;
-}
-
