@@ -1,5 +1,14 @@
 :host {
   display: block;
+  min-height: 100vh;
+  background-image: url('/assets/images/login-bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+:host {
+  display: block;
   height: 100vh;
   background: #f4f7fa;
   color: #1f2937;
@@ -464,4 +473,10 @@
   flex: 1;
   overflow-y: auto;
   background: #f4f7fa;
+}
+.login-container {
+  background-image: url('/assets/images/login-bg.png');
+  background-size: cover;
+  background-position: center;
+  min-height: 100vh;
 }

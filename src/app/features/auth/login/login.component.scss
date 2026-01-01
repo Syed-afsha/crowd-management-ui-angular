@@ -1,3 +1,12 @@
+:host {
+  display: block;
+  min-height: 100vh;
+  background-image: url('/assets/images/login-bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
 .login-page {
   position: fixed;
   top: 0;
@@ -276,3 +285,16 @@
     max-width: 420px;
   }
 }
+:host {
+  display: block;
+  min-height: 100vh;
+  background-image: url('/assets/images/login-bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.login-container {
+  background: transparent !important;
+}
+
