@@ -297,4 +297,18 @@
 .login-container {
   background: transparent !important;
 }
+:host {
+  display: block;
+  min-height: 100vh;
+  background:
+    linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
+    url('/assets/images/login-bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.login-container {
+  background: transparent !important;
+}
 
