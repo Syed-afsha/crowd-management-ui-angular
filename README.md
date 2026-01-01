@@ -41,7 +41,7 @@ Experience the full application with real-time updates, interactive charts, and 
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/Manavbarodiya/Crowd-management-ui-angular.git
+git clone https://github.com/Syed-afsha/Crowd-management-ui-angular.git
 cd Crowd-management-ui-angular
 ```
 
