@@ -241,7 +241,7 @@ This creates optimized production files in `dist/crowd-management-ui/` directory
 Upload the contents of `dist/crowd-management-ui/` to any static hosting service:
 
 - **Netlify** - Drag and drop the folder or connect via Git
-  - **Live Site**: [https://crowd-management-ui-angular.netlify.app](https://crowd-management-ui-angular.netlify.app)
+  - **Live Site**: [[https://crowd-management-ui-angular.netlify.app](https://crowd-management-ui-angular-syed.netlify.app/login)]([https://crowd-management-ui-angular.netlify.app](https://crowd-management-ui-angular-syed.netlify.app/login))
 - **Vercel** - Deploy via CLI: `vercel --prod`
 - **GitHub Pages** - Push the dist folder to gh-pages branch
 - **Firebase Hosting** - Use Firebase CLI
